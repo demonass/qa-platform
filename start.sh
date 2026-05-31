@@ -5,11 +5,7 @@ echo ""
 
 echo "📦 1. 启动 Python Agent 服务 (端口 8000)..."
 cd services/agent
-if [ ! -d "venv" ]; then
-    echo "创建 Python 虚拟环境..."
-    python3 -m venv venv
-fi
-source venv/bin/activate
+source ~/ai_env/bin/activate
 pip install -q -r requirements.txt
 python main.py &
 AGENT_PID=$!
