@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -16,6 +18,10 @@ import (
 
 const (
 	AgentServiceURL = "http://127.0.0.1:8000"
+)
+
+var (
+	AuthToken = os.Getenv("AUTH_TOKEN")
 )
 
 type ChatRequest struct {
@@ -43,14 +49,89 @@ type ExportResponse struct {
 	Content string `json:"content"`
 }
 
+type RequestLog struct {
+	Timestamp    string  `json:"timestamp"`
+	Method       string  `json:"method"`
+	Path         string  `json:"path"`
+	Duration     float64 `json:"duration_ms"`
+	TokenUsed    int     `json:"token_used"`
+	SessionID    string  `json:"session_id,omitempty"`
+	StatusCode   int     `json:"status_code"`
+	Error        string  `json:"error,omitempty"`
+}
+
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if AuthToken == "" {
+			c.Next()
+			return
+		}
+
+		token := c.GetHeader("Authorization")
+		token = strings.TrimPrefix(token, "Bearer ")
+
+		if token == "" {
+			token = c.GetHeader("X-Auth-Token")
+		}
+
+		if token != AuthToken {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: invalid or missing token"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func loggingMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+
+		c.Next()
+
+		duration := time.Since(start).Milliseconds()
+
+		tokenUsed := 0
+		if promptTokens, exists := c.Get("prompt_tokens"); exists {
+			tokenUsed += promptTokens.(int)
+		}
+		if completionTokens, exists := c.Get("completion_tokens"); exists {
+			tokenUsed += completionTokens.(int)
+		}
+
+		rl := RequestLog{
+			Timestamp:  time.Now().Format(time.RFC3339),
+			Method:      c.Request.Method,
+			Path:         c.Request.URL.Path,
+			Duration:     float64(duration),
+			TokenUsed:    tokenUsed,
+			SessionID:    c.GetHeader("X-Session-ID"),
+			StatusCode:   c.Writer.Status(),
+			Error:        c.Errors.String(),
+		}
+
+		logJSON, _ := json.Marshal(rl)
+		log.Printf("[REQUEST] %s", string(logJSON))
+	}
+}
+
 func main() {
-	r := gin.Default()
+	if AuthToken == "" {
+		log.Println("WARNING: AUTH_TOKEN not set, authentication disabled")
+	}
+
+	log.Println("Backend service starting...")
+
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(loggingMiddleware())
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Auth-Token", "X-Session-ID"},
+		ExposeHeaders:    []string{"Content-Length", "X-Session-ID"},
 		AllowCredentials: true,
 	}))
 
@@ -61,11 +142,17 @@ func main() {
 		})
 	})
 
-	r.POST("/api/chat", handleChat)
-	r.POST("/api/chat/stream", handleChatStream)
-	r.GET("/api/history/:session_id", handleGetHistory)
-	r.DELETE("/api/history/:session_id", handleClearHistory)
-	r.POST("/api/export", handleExport)
+	r.GET("/api/agent/config", handleGetAgentConfig)
+
+	api := r.Group("/api")
+	api.Use(authMiddleware())
+	{
+		api.POST("/chat", handleChat)
+		api.POST("/chat/stream", handleChatStream)
+		api.GET("/history/:session_id", handleGetHistory)
+		api.DELETE("/history/:session_id", handleClearHistory)
+		api.POST("/export", handleExport)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -78,7 +165,26 @@ func main() {
 	}
 }
 
+func handleGetAgentConfig(c *gin.Context) {
+	resp, err := http.Get(AgentServiceURL + "/config")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to agent service"})
+		return
+	}
+	defer resp.Body.Close()
+
+	var config map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, config)
+}
+
 func handleChat(c *gin.Context) {
+	start := time.Now()
+
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -111,6 +217,9 @@ func handleChat(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse agent response"})
 		return
 	}
+
+	duration := time.Since(start).Milliseconds()
+	log.Printf("[CHAT] session=%s duration=%dms status=success", req.SessionID, duration)
 
 	c.JSON(http.StatusOK, gin.H{
 		"response":   agentResp.Response,
@@ -211,7 +320,7 @@ func handleClearHistory(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "History cleared"})
+	c.JSON(http.StatusOK, gin.H{"status": "cleared", "session_id": sessionID})
 }
 
 func handleExport(c *gin.Context) {
@@ -221,26 +330,12 @@ func handleExport(c *gin.Context) {
 		return
 	}
 
-	if req.SessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "session_id is required"})
-		return
+	format := req.Format
+	if format == "" {
+		format = "markdown"
 	}
 
-	if req.Format == "" {
-		req.Format = "markdown"
-	}
-
-	exportReq := map[string]string{
-		"session_id": req.SessionID,
-		"format":     req.Format,
-	}
-	jsonData, _ := json.Marshal(exportReq)
-
-	resp, err := http.Post(
-		AgentServiceURL+"/export",
-		"application/json",
-		bytes.NewReader(jsonData),
-	)
+	resp, err := http.Get(AgentServiceURL + "/export/" + req.SessionID + "?format=" + format)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to agent service"})
 		return

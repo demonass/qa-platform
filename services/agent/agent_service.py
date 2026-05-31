@@ -1,11 +1,10 @@
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from config import OPENAI_API_KEY, OPENAI_API_BASE, MODEL_NAME
+from config import get_llm_config
 
 for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
             "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"]:
@@ -28,8 +27,19 @@ class ConversationHistory:
         if session_id in self.sessions:
             self.sessions[session_id] = []
 
+    def format_history(self, session_id: str) -> str:
+        history = self.get_history(session_id)
+        if not history:
+            return "（无历史对话）"
+        formatted = []
+        for msg in history[-6:]:
+            role = "用户" if msg["role"] == "user" else "助手"
+            formatted.append(f"{role}: {msg['content']}")
+        return "\n".join(formatted)
+
 
 conversation_history = ConversationHistory()
+
 
 SYSTEM_PROMPT = """你是一位拥有10年经验的资深QA测试工程师，精通软件测试理论和实践。
 
@@ -76,11 +86,14 @@ def get_qa_tools():
 
 
 def create_qa_agent():
+    llm_config = get_llm_config()
+
     llm = ChatOpenAI(
-        model=MODEL_NAME,
+        model=llm_config["model"],
         temperature=0.7,
-        openai_api_key=OPENAI_API_KEY,
-        openai_api_base=OPENAI_API_BASE
+        openai_api_key=llm_config["api_key"],
+        openai_api_base=llm_config["api_base"],
+        request_timeout=300
     )
 
     tools = get_qa_tools()
@@ -88,12 +101,15 @@ def create_qa_agent():
     prompt = PromptTemplate.from_template(
         """你是一个专业的 QA 测试工程师，擅长编写测试用例和分析测试需求。
 
+{system_prompt}
+
+当前问题：{input}
+
 你可以使用以下工具：
 {tools}
 
 使用以下格式：
 
-Question: 用户的问题
 Thought: 你应该思考做什么
 Action: 要使用的工具名称（必须是 [{tool_names}] 之一）
 Action Input: 工具的输入
@@ -104,7 +120,6 @@ Final Answer: 对用户问题的最终回答
 
 开始！
 
-Question: {input}
 Thought: {agent_scratchpad}"""
     )
 
@@ -123,48 +138,10 @@ Thought: {agent_scratchpad}"""
 qa_agent = create_qa_agent()
 
 
-def get_agent_with_history(session_id: str):
-    from langchain_core.runnables.history import RunnableWithMessageHistory
-    from langchain_core.chat_history import InMemoryChatMessageHistory
+def run_agent_with_history(session_id: str, user_input: str) -> str:
+    result = qa_agent.invoke({
+        "input": user_input,
+        "system_prompt": SYSTEM_PROMPT
+    })
 
-    store: Dict[str, InMemoryChatMessageHistory] = {}
-
-    def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
-        if session_id not in store:
-            store[session_id] = InMemoryChatMessageHistory()
-        return store[session_id]
-
-    prompt_with_history = PromptTemplate.from_template(
-        """你是一个专业的 QA 测试工程师，擅长编写测试用例和分析测试需求。
-
-你可以使用以下工具：
-{tools}
-
-历史对话：
-{chat_history}
-
-使用以下格式：
-
-Question: 用户的问题
-Thought: 你应该思考做什么
-Action: 要使用的工具名称（必须是 [{tool_names}] 之一）
-Action Input: 工具的输入
-Observation: 工具的输出
-... (这个 Thought/Action/Action Input/Observation 可以重复 N 次)
-Thought: 我现在知道最终答案了
-Final Answer: 对用户问题的最终回答
-
-开始！
-
-Question: {input}
-Thought: {agent_scratchpad}"""
-    )
-
-    agent_with_history = RunnableWithMessageHistory(
-        qa_agent,
-        get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history"
-    )
-
-    return agent_with_history, store
+    return result["output"]

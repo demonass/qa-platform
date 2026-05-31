@@ -17,6 +17,7 @@ env/
 *.test
 *.out
 go.sum
+backend
 
 # Node
 node_modules/

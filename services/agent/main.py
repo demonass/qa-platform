@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import qa_agent, get_agent_with_history, conversation_history
+from agent_service import qa_agent, conversation_history, run_agent_with_history
+from config import LLM_PROVIDER, get_llm_config
 
 app = FastAPI(title="QA Agent Service", version="1.1.0")
 
@@ -37,17 +38,28 @@ async def health_check():
     return {"status": "healthy", "service": "qa-agent"}
 
 
+@app.get("/config")
+async def get_config():
+    llm_config = get_llm_config()
+    return {
+        "provider": LLM_PROVIDER,
+        "model": llm_config["model"],
+        "api_base": llm_config["api_base"],
+        "version": "2.0.0"
+    }
+
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
         conversation_history.add_message(request.session_id, "user", request.message)
 
-        result = qa_agent.invoke({"input": request.message})
+        result = run_agent_with_history(request.session_id, request.message)
 
-        conversation_history.add_message(request.session_id, "assistant", result["output"])
+        conversation_history.add_message(request.session_id, "assistant", result)
 
         return ChatResponse(
-            response=result["output"],
+            response=result,
             status="success"
         )
     except Exception as e:
@@ -59,19 +71,17 @@ async def chat(request: ChatRequest):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    agent_with_history, store = get_agent_with_history(request.session_id)
+    conversation_history.add_message(request.session_id, "user", request.message)
 
     async def event_generator():
         try:
-            result = await agent_with_history.ainvoke(
-                {"input": request.message},
-                config={"configurable": {"session_id": request.session_id}}
-            )
-            output = result["output"]
+            result = run_agent_with_history(request.session_id, request.message)
+
+            conversation_history.add_message(request.session_id, "assistant", result)
 
             chunk_size = 10
-            for i in range(0, len(output), chunk_size):
-                chunk = output[i:i+chunk_size]
+            for i in range(0, len(result), chunk_size):
+                chunk = result[i:i+chunk_size]
                 yield {
                     "event": "message",
                     "data": json.dumps({"content": chunk, "done": False})
