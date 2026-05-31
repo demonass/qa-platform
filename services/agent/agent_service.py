@@ -1,8 +1,14 @@
+import os
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
 from config import OPENAI_API_KEY, OPENAI_API_BASE, MODEL_NAME
+
+os.environ.pop("http_proxy", None)
+os.environ.pop("https_proxy", None)
+os.environ.pop("HTTP_PROXY", None)
+os.environ.pop("HTTPS_PROXY", None)
 
 
 def get_qa_tools():
