@@ -5,11 +5,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+export PATH="$HOME/sdk/go1.26.2/bin:$PATH"
+export GOPROXY=https://goproxy.cn,direct
+
 echo "🚀 启动 AI 测试平台..."
 echo ""
 
 echo "📦 1. 启动 Python Agent 服务 (端口 8000)..."
 cd "$SCRIPT_DIR/services/agent"
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
 source ~/ai_env/bin/activate
 pip install -q -r requirements.txt 2>&1 | head -20
 echo "   Python Agent 服务启动中..."
@@ -21,8 +25,11 @@ cd "$SCRIPT_DIR"
 
 sleep 2
 
-echo "🔧 2. 启动 Go 后端服务 (端口 8080)..."
+echo "🔧 2. 启动 Go 后端服务 (端口 8081)..."
 cd "$SCRIPT_DIR/services/backend"
+echo "   下载 Go 依赖..."
+go mod tidy
+echo "   Go 后端服务启动中..."
 nohup go run main.go > /tmp/backend.log 2>&1 &
 BACKEND_PID=$!
 echo "   Backend PID: $BACKEND_PID"
@@ -44,7 +51,7 @@ echo "✅ 所有服务已启动！"
 echo ""
 echo "📌 服务地址："
 echo "   - 前端界面: http://localhost:3000"
-echo "   - Go 后端:  http://localhost:8080"
+echo "   - Go 后端:  http://localhost:8081"
 echo "   - Agent:    http://localhost:8000"
 echo ""
 echo "📝 日志文件："

@@ -5,10 +5,9 @@ from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
 from config import OPENAI_API_KEY, OPENAI_API_BASE, MODEL_NAME
 
-os.environ.pop("http_proxy", None)
-os.environ.pop("https_proxy", None)
-os.environ.pop("HTTP_PROXY", None)
-os.environ.pop("HTTPS_PROXY", None)
+for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
+            "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"]:
+    os.environ.pop(key, None)
 
 
 def get_qa_tools():

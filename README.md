@@ -14,7 +14,7 @@ qa-platform/
 │   │   ├── requirements.txt  # Python 依赖
 │   │   └── .env.example      # 环境变量示例
 │   │
-│   ├── backend/        # Go 后端服务 (端口 8080)
+│   ├── backend/        # Go 后端服务 (端口 8081)
 │   │   ├── main.go          # Gin 框架应用
 │   │   └── go.mod           # Go 依赖
 │   │
@@ -76,7 +76,7 @@ go mod tidy
 go run main.go
 ```
 
-服务地址：http://localhost:8080
+服务地址：http://localhost:8081
 
 #### 3. 启动前端服务
 
@@ -122,7 +122,7 @@ MODEL_NAME=gpt-3.5-turbo
 **请求示例：**
 
 ```bash
-curl -X POST http://localhost:8080/api/chat \
+curl -X POST http://localhost:8081/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "为用户登录功能生成测试用例"}'
 ```
