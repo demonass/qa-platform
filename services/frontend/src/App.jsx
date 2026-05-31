@@ -7,6 +7,10 @@ function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionId, setSessionId] = useState(() => {
+    return localStorage.getItem('qa_session_id') || ''
+  })
+  const [copiedId, setCopiedId] = useState(null)
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -17,36 +21,57 @@ function App() {
     scrollToBottom()
   }, [messages])
 
-  const sendMessage = async (e) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
+  useEffect(() => {
+    if (sessionId) {
+      localStorage.setItem('qa_session_id', sessionId)
+    }
+  }, [sessionId])
 
-    const userMessage = { role: 'user', content: input }
-    setMessages(prev => [...prev, userMessage])
-    setInput('')
-    setIsLoading(true)
+  const generateSessionId = () => {
+    const newId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    setSessionId(newId)
+    localStorage.setItem('qa_session_id', newId)
+    setMessages([])
+  }
+
+  const copyToClipboard = async (text, msgId) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedId(msgId)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const exportConversation = async (format = 'markdown') => {
+    if (!sessionId) {
+      alert('请先生成会话ID')
+      return
+    }
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ session_id: sessionId, format })
       })
 
       const data = await response.json()
 
-      const assistantMessage = {
-        role: 'assistant',
-        content: data.response || '抱歉，发生了错误'
+      if (data.content) {
+        const blob = new Blob([data.content], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `qa-conversation-${Date.now()}.md`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
       }
-      setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `错误: ${error.message}`
-      }])
-    } finally {
-      setIsLoading(false)
+      console.error('Export failed:', error)
     }
   }
 
@@ -54,8 +79,12 @@ function App() {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    const userMessage = { role: 'user', content: input }
-    const assistantMessage = { role: 'assistant', content: '' }
+    if (!sessionId) {
+      generateSessionId()
+    }
+
+    const userMessage = { role: 'user', content: input, id: Date.now() }
+    const assistantMessage = { role: 'assistant', content: '', id: Date.now() + 1 }
 
     setMessages(prev => [...prev, userMessage, assistantMessage])
     const currentInput = input
@@ -63,12 +92,13 @@ function App() {
     setIsLoading(true)
 
     let assistantContent = ''
+    let currentSessionId = sessionId
 
     try {
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput })
+        body: JSON.stringify({ message: currentInput, session_id: currentSessionId })
       })
 
       const reader = response.body.getReader()
@@ -93,7 +123,8 @@ function App() {
                   const newMessages = [...prev]
                   newMessages[newMessages.length - 1] = {
                     role: 'assistant',
-                    content: assistantContent
+                    content: assistantContent,
+                    id: currentSessionId
                   }
                   return newMessages
                 })
@@ -109,7 +140,8 @@ function App() {
         const newMessages = [...prev]
         newMessages[newMessages.length - 1] = {
           role: 'assistant',
-          content: `错误: ${error.message}`
+          content: `错误: ${error.message}`,
+          id: Date.now()
         }
         return newMessages
       })
@@ -124,6 +156,12 @@ function App() {
         <div className="header">
           <h1>🤖 AI 测试平台</h1>
           <p>智能生成测试用例 · 分析测试需求</p>
+          <div className="session-info">
+            <span className="session-label">会话ID:</span>
+            <span className="session-id">{sessionId || '未创建'}</span>
+            <button className="btn-small" onClick={generateSessionId}>新建会话</button>
+            <button className="btn-small" onClick={() => exportConversation('markdown')} disabled={!sessionId}>导出</button>
+          </div>
         </div>
 
         <div className="messages">
@@ -143,13 +181,23 @@ function App() {
               <div className="avatar">
                 {msg.role === 'user' ? '👤' : '🤖'}
               </div>
-              <div className="content">
-                {msg.role === 'assistant' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
-                ) : (
-                  <p>{msg.content}</p>
+              <div className="content-wrapper">
+                <div className="content">
+                  {msg.role === 'assistant' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <p>{msg.content}</p>
+                  )}
+                </div>
+                {msg.role === 'assistant' && msg.content && (
+                  <button
+                    className={`copy-btn ${copiedId === msg.id ? 'copied' : ''}`}
+                    onClick={() => copyToClipboard(msg.content, msg.id)}
+                  >
+                    {copiedId === msg.id ? '✓ 已复制' : '📋 复制'}
+                  </button>
                 )}
               </div>
             </div>

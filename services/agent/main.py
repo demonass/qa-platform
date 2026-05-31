@@ -1,12 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import qa_agent
+from agent_service import qa_agent, get_agent_with_history, conversation_history
 
-app = FastAPI(title="QA Agent Service", version="1.0.0")
+app = FastAPI(title="QA Agent Service", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +27,11 @@ class ChatResponse(BaseModel):
     status: str
 
 
+class ExportRequest(BaseModel):
+    session_id: str = "default"
+    format: str = "markdown"
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "qa-agent"}
@@ -35,7 +40,12 @@ async def health_check():
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
+        conversation_history.add_message(request.session_id, "user", request.message)
+
         result = qa_agent.invoke({"input": request.message})
+
+        conversation_history.add_message(request.session_id, "assistant", result["output"])
+
         return ChatResponse(
             response=result["output"],
             status="success"
@@ -49,11 +59,16 @@ async def chat(request: ChatRequest):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    agent_with_history, store = get_agent_with_history(request.session_id)
+
     async def event_generator():
         try:
-            result = qa_agent.invoke({"input": request.message})
+            result = await agent_with_history.ainvoke(
+                {"input": request.message},
+                config={"configurable": {"session_id": request.session_id}}
+            )
             output = result["output"]
-            
+
             chunk_size = 10
             for i in range(0, len(output), chunk_size):
                 chunk = output[i:i+chunk_size]
@@ -62,7 +77,7 @@ async def chat_stream(request: ChatRequest):
                     "data": json.dumps({"content": chunk, "done": False})
                 }
                 await asyncio.sleep(0.05)
-            
+
             yield {
                 "event": "message",
                 "data": json.dumps({"content": "", "done": True})
@@ -72,8 +87,45 @@ async def chat_stream(request: ChatRequest):
                 "event": "error",
                 "data": json.dumps({"error": str(e)})
             }
-    
+
     return EventSourceResponse(event_generator())
+
+
+@app.get("/history/{session_id}")
+async def get_history(session_id: str):
+    history = conversation_history.get_history(session_id)
+    return {"session_id": session_id, "history": history}
+
+
+@app.delete("/history/{session_id}")
+async def clear_history(session_id: str):
+    conversation_history.clear_history(session_id)
+    return {"status": "success", "message": f"History cleared for session: {session_id}"}
+
+
+@app.post("/export")
+async def export_conversation(request: ExportRequest):
+    history = conversation_history.get_history(request.session_id)
+
+    if not history:
+        raise HTTPException(status_code=404, detail="No conversation history found")
+
+    if request.format == "markdown":
+        md_content = "# 对话记录导出\n\n"
+        for msg in history:
+            role = "👤 用户" if msg["role"] == "user" else "🤖 AI 助手"
+            md_content += f"## {role}\n\n{msg['content']}\n\n---\n\n"
+        return {"format": "markdown", "content": md_content}
+
+    elif request.format == "text":
+        text_content = "对话记录导出\n" + "=" * 50 + "\n\n"
+        for msg in history:
+            role = "用户" if msg["role"] == "user" else "AI助手"
+            text_content += f"[{role}]\n{msg['content']}\n\n"
+        return {"format": "text", "content": text_content}
+
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported format. Use 'markdown' or 'text'")
 
 
 if __name__ == "__main__":
