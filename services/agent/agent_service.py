@@ -9,6 +9,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.schema import messages_to_dict, messages_from_dict
 from config import get_llm_config
 from intent_detector import Intent, detect_intent, INTENT_RESPONSES
+from tools import get_all_tools
 
 for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
             "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"]:
@@ -235,3 +236,80 @@ def run_agent_with_history(session_id: str, user_input: str) -> str:
         return f"{prefix}\n\n{result}"
     
     return handle_intent(intent, user_input_with_history)
+
+
+# ==================== 工具调用功能 ====================
+
+def run_agent_with_tools(session_id: str, user_input: str) -> str:
+    """
+    使用工具增强的 Agent 执行
+    支持调用 CodeAnalyzerTool、TestCaseGeneratorTool、BugHunterTool
+    """
+    llm = get_llm()
+    tools = get_all_tools()
+    
+    # 获取对话历史
+    memory = conversation_history.get_memory(session_id)
+    
+    # Agent Info 提示词
+    agent_info = """你是一位专业的QA测试工程师，拥有以下工具可用：
+    
+可用工具：
+1. code_analyzer - 分析 Git 代码变更，输入 commit ID 获取代码差异，并提供测试建议
+2. test_case_generator - 输入需求文本，生成结构化的测试用例 JSON
+3. bug_hunter - 输入历史缺陷日志，预测高风险模块
+
+请根据用户的请求，决定是否需要调用工具。如果需要调用工具，请使用 <function_name> 参数格式。
+
+输出格式：
+- 如果需要调用工具：<function_name>{"参数": "值"}
+- 如果不需要调用工具：直接回答用户问题
+
+例如：
+用户：分析 commit abc123 的代码变更
+回答：<code_analyzer>{"commit_id": "abc123"}</code_analyzer>
+"""
+    
+    try:
+        # 先判断是否需要调用工具
+        tool_detection_prompt = PromptTemplate.from_template("""
+{agent_info}
+
+用户请求：{user_input}
+
+请判断是否需要调用工具，如果需要，请输出工具调用格式。如果不需要，直接回答。
+""")
+        
+        tool_chain = LLMChain(llm=llm, prompt=tool_detection_prompt)
+        tool_response = tool_chain.run(agent_info=agent_info, user_input=user_input)
+        
+        # 检查是否包含工具调用
+        import re
+        tool_match = re.search(r'<(\w+)>\s*(\{.*?\})', tool_response, re.DOTALL)
+        
+        if tool_match:
+            tool_name = tool_match.group(1)
+            tool_args = tool_match.group(2)
+            
+            # 查找并调用工具
+            for tool in tools:
+                if tool.name == tool_name:
+                    try:
+                        import json
+                        args = json.loads(tool_args)
+                        result = tool.run(args)
+                        return f"工具执行结果：\n\n{result}"
+                    except json.JSONDecodeError:
+                        return f"工具调用参数解析失败: {tool_args}"
+                    except Exception as e:
+                        return f"工具执行失败: {str(e)}"
+            
+            return f"未找到工具: {tool_name}"
+        
+        # 如果不需要调用工具，使用普通逻辑
+        return run_agent_with_history(session_id, user_input)
+        
+    except Exception as e:
+        # 如果工具调用失败，回退到普通逻辑
+        print(f"[WARN] 工具调用失败，回退到普通模式: {e}")
+        return run_agent_with_history(session_id, user_input)

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import conversation_history, run_agent_with_history, rag_service
+from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service
 from document_processor import process_document, DocumentProcessor
 from config import LLM_PROVIDER, get_llm_config
 
@@ -110,7 +110,8 @@ async def chat(request: ChatRequest):
     try:
         conversation_history.add_message(request.session_id, "user", request.message)
 
-        result = run_agent_with_history(request.session_id, request.message)
+        # 使用工具增强的 Agent
+        result = run_agent_with_tools(request.session_id, request.message)
 
         conversation_history.add_message(request.session_id, "assistant", result)
 
@@ -125,13 +126,14 @@ async def chat(request: ChatRequest):
         )
 
 
-@app.post("/chat/stream")
+@chat_stream
 async def chat_stream(request: ChatRequest):
     conversation_history.add_message(request.session_id, "user", request.message)
 
     async def event_generator():
         try:
-            result = run_agent_with_history(request.session_id, request.message)
+            # 使用工具增强的 Agent
+            result = run_agent_with_tools(request.session_id, request.message)
 
             conversation_history.add_message(request.session_id, "assistant", result)
 
