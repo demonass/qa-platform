@@ -1,0 +1,75 @@
+'use client'
+
+import type { UIMessage } from 'ai'
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation'
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message'
+import { Sparkles, User } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface ChatMessagesProps {
+  messages: UIMessage[]
+  isLoading: boolean
+}
+
+export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+  return (
+    <Conversation className="flex-1">
+      <ConversationContent className="mx-auto max-w-3xl gap-6 px-4 py-6">
+        {messages.map((message, index) => {
+          const isUser = message.role === 'user'
+          const isLast = index === messages.length - 1
+          const isStreaming = isLoading && isLast && !isUser
+
+          return (
+            <div
+              key={message.id}
+              className={cn(
+                'flex gap-3',
+                isUser ? 'flex-row-reverse' : 'flex-row'
+              )}
+            >
+              {!isUser && (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Sparkles className="size-4" />
+                </div>
+              )}
+              
+              <Message from={message.role} className="max-w-[85%]">
+                <MessageContent>
+                  {message.parts.map((part, i) => {
+                    if (part.type === 'text') {
+                      return (
+                        <MessageResponse
+                          key={`${message.id}-${i}`}
+                          isAnimating={isStreaming}
+                        >
+                          {part.text}
+                        </MessageResponse>
+                      )
+                    }
+                    return null
+                  })}
+                </MessageContent>
+              </Message>
+              
+              {isUser && (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                  <User className="size-4" />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </ConversationContent>
+      <ConversationScrollButton />
+    </Conversation>
+  )
+}
