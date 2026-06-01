@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -322,6 +322,103 @@ async def document_chunk(request: DocumentChunkRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文档切分失败: {str(e)}")
+
+
+@app.post("/document/upload")
+async def document_upload(
+    file: UploadFile = File(...),
+    strategy: str = "semantic",
+    target_chunks: int = 5
+):
+    """
+    文档上传 API
+    
+    支持上传 Word、PDF、TXT、Markdown 等格式的文档
+    
+    Args:
+        file: 上传的文件
+        strategy: 切分策略 (recursive, semantic, topic)
+        target_chunks: 目标切分数量
+    
+    Returns:
+        切分后的模块列表
+    """
+    try:
+        # 支持的文件类型
+        allowed_types = [
+            "text/plain",
+            "text/markdown",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/pdf",
+        ]
+        
+        # 支持的文件扩展名
+        allowed_extensions = [".txt", ".md", ".docx", ".pdf"]
+        
+        filename = file.filename.lower()
+        file_extension = None
+        
+        for ext in allowed_extensions:
+            if filename.endswith(ext):
+                file_extension = ext
+                break
+        
+        if not file_extension:
+            raise HTTPException(status_code=400, detail="不支持的文件格式，支持: txt, md, docx, pdf")
+        
+        # 读取文件内容
+        content = await file.read()
+        
+        # 根据文件类型提取文本
+        text_content = ""
+        
+        if file_extension == ".txt" or file_extension == ".md":
+            text_content = content.decode("utf-8", errors="ignore")
+        
+        elif file_extension == ".docx":
+            try:
+                from docx import Document
+                import io
+                doc = Document(io.BytesIO(content))
+                text_content = "\n".join([para.text for para in doc.paragraphs])
+            except ImportError:
+                raise HTTPException(status_code=500, detail="需要安装 python-docx 库")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"解析 Word 文档失败: {str(e)}")
+        
+        elif file_extension == ".pdf":
+            try:
+                from PyPDF2 import PdfReader
+                import io
+                reader = PdfReader(io.BytesIO(content))
+                text_content = "\n".join([page.extract_text() for page in reader.pages])
+            except ImportError:
+                raise HTTPException(status_code=500, detail="需要安装 PyPDF2 库")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"解析 PDF 文档失败: {str(e)}")
+        
+        if not text_content.strip():
+            raise HTTPException(status_code=400, detail="无法从文件中提取文本内容")
+        
+        # 使用智能切分处理文档
+        result = process_document(
+            text=text_content,
+            strategy=strategy,
+            target_chunks=target_chunks
+        )
+        
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "file_size": len(content),
+            "strategy": strategy,
+            "module_count": len(result),
+            "modules": result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件上传处理失败: {str(e)}")
 
 
 if __name__ == "__main__":
