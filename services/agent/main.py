@@ -5,6 +5,7 @@ from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
 from agent_service import conversation_history, run_agent_with_history, rag_service
+from document_processor import process_document, DocumentProcessor
 from config import LLM_PROVIDER, get_llm_config
 
 app = FastAPI(title="QA Agent Service", version="1.1.0")
@@ -231,6 +232,96 @@ async def rag_status():
         return {"status": "not_available", "message": "RAG service not initialized"}
     
     return {"status": "available", "message": "RAG service is ready"}
+
+
+# ==================== 文档处理 API ====================
+
+class DocumentProcessRequest(BaseModel):
+    content: str
+    strategy: str = "semantic"  # recursive, semantic, topic
+    target_chunks: int = 5
+
+
+class DocumentChunkRequest(BaseModel):
+    content: str
+    chunk_size: int = 500
+    chunk_overlap: int = 50
+
+
+@app.post("/document/process")
+async def document_process(request: DocumentProcessRequest):
+    """
+    智能文档处理 API
+    
+    支持三种切分策略：
+    - recursive: 递归字符切分（基于标点符号）
+    - semantic: Max-Min 语义切分（推荐）
+    - topic: 大模型主题识别切分
+    
+    Args:
+        content: 文档内容
+        strategy: 切分策略
+        target_chunks: 目标切分数量（仅对 semantic 策略有效）
+    
+    Returns:
+        切分后的模块列表
+    """
+    try:
+        if not request.content.strip():
+            raise HTTPException(status_code=400, detail="文档内容不能为空")
+        
+        if request.strategy not in ["recursive", "semantic", "topic"]:
+            raise HTTPException(status_code=400, detail="无效的切分策略")
+        
+        result = process_document(
+            text=request.content,
+            strategy=request.strategy,
+            target_chunks=request.target_chunks
+        )
+        
+        return {
+            "status": "success",
+            "strategy": request.strategy,
+            "module_count": len(result),
+            "modules": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文档处理失败: {str(e)}")
+
+
+@app.post("/document/chunk")
+async def document_chunk(request: DocumentChunkRequest):
+    """
+    简单文档切分 API
+    
+    使用递归字符切分器进行切分
+    
+    Args:
+        content: 文档内容
+        chunk_size: 每个 chunk 的大小
+        chunk_overlap: chunk 之间的重叠大小
+    
+    Returns:
+        切分后的文本块列表
+    """
+    try:
+        if not request.content.strip():
+            raise HTTPException(status_code=400, detail="文档内容不能为空")
+        
+        processor = DocumentProcessor(
+            chunk_size=request.chunk_size,
+            chunk_overlap=request.chunk_overlap
+        )
+        
+        chunks = processor.split_by_recursive_char(request.content)
+        
+        return {
+            "status": "success",
+            "chunk_count": len(chunks),
+            "chunks": chunks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文档切分失败: {str(e)}")
 
 
 if __name__ == "__main__":
