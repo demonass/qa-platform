@@ -15,33 +15,29 @@ import os
 import re
 
 
+class CodeAnalyzerInput(BaseModel):
+    commit_id: str = Field(description="Git commit ID")
+    repo_path: Optional[str] = Field(default=None, description="代码仓库路径")
+
+
 class CodeAnalyzerTool(BaseTool):
     """分析 Git 代码变更的工具"""
     
-    name = "code_analyzer"
-    description = "分析 Git 代码变更，输入 commit ID 获取代码差异，并提供测试建议"
-    
-    class InputSchema(BaseModel):
-        commit_id: str = Field(description="Git commit ID")
-        repo_path: Optional[str] = Field(default=None, description="代码仓库路径")
+    name: str = "code_analyzer"
+    description: str = "分析 Git 代码变更，输入 commit ID 获取代码差异，并提供测试建议"
     
     def _run(self, commit_id: str, repo_path: Optional[str] = None) -> str:
         """执行代码分析"""
         try:
-            # 设置仓库路径
             if repo_path is None:
                 repo_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
             
-            # 获取 commit diff
             diff = self._get_git_diff(commit_id, repo_path)
             
             if not diff:
                 return f"无法获取 commit {commit_id} 的代码变更信息"
             
-            # 分析变更
             analysis = self._analyze_diff(diff)
-            
-            # 生成测试建议
             suggestions = self._generate_test_suggestions(analysis)
             
             return f"""
@@ -79,7 +75,6 @@ class CodeAnalyzerTool(BaseTool):
             )
             if result.returncode != 0:
                 return ""
-            
             return result.stdout
         except Exception:
             return ""
@@ -99,13 +94,11 @@ class CodeAnalyzerTool(BaseTool):
         
         lines = diff.strip().split('\n')
         for line in lines:
-            # 匹配文件变更行
             match = re.match(r'^([^|]+?)\s+\|\s+(\d+)\s+([+-]+)$', line.strip())
             if match:
                 file_path = match.group(1).strip()
                 files_changed.append(file_path)
                 
-                # 判断文件类型
                 if file_path.endswith('.py'):
                     if '/tests/' in file_path or file_path.startswith('test_'):
                         change_types["测试文件"] += 1
@@ -148,13 +141,3 @@ class CodeAnalyzerTool(BaseTool):
             suggestions.append("- 根据代码变更，建议进行回归测试")
         
         return chr(10).join(suggestions)
-
-
-# 测试工具
-if __name__ == "__main__":
-    tool = CodeAnalyzerTool()
-    result = tool.run({
-        "commit_id": "HEAD",
-        "repo_path": os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    })
-    print(result)

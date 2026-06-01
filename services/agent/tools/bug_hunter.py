@@ -17,15 +17,16 @@ from langchain.chains import LLMChain
 import json
 
 
+class BugHunterInput(BaseModel):
+    defect_logs: str = Field(description="历史缺陷日志，JSON 格式或文本描述")
+    current_changes: Optional[str] = Field(default="", description="本次上线的代码变更描述")
+
+
 class BugHunterTool(BaseTool):
     """预测高风险模块的工具"""
     
-    name = "bug_hunter"
-    description = "输入历史缺陷日志，预测本次上线的高风险模块，提供风险评估报告"
-    
-    class InputSchema(BaseModel):
-        defect_logs: str = Field(description="历史缺陷日志，JSON 格式或文本描述")
-        current_changes: Optional[str] = Field(default="", description="本次上线的代码变更描述")
+    name: str = "bug_hunter"
+    description: str = "输入历史缺陷日志，预测本次上线的高风险模块，提供风险评估报告"
     
     def _run(self, defect_logs: str, current_changes: str = "") -> str:
         """执行缺陷分析和风险预测"""
@@ -74,7 +75,6 @@ class BugHunterTool(BaseTool):
             chain = LLMChain(llm=llm, prompt=prompt)
             result = chain.run(defect_logs=defect_logs, current_changes=current_changes)
             
-            # 尝试解析 JSON
             try:
                 data = json.loads(result)
                 return json.dumps(data, ensure_ascii=False, indent=2)
@@ -83,22 +83,3 @@ class BugHunterTool(BaseTool):
                 
         except Exception as e:
             return f"缺陷分析失败: {str(e)}"
-
-
-# 测试工具
-if __name__ == "__main__":
-    tool = BugHunterTool()
-    
-    sample_defects = """
-1. 登录模块：密码长度校验不严格 - 已修复
-2. 订单模块：并发下单导致数据重复 - 已修复
-3. 支付模块：网络超时导致重复扣款 - 已修复
-4. 用户模块：边界条件处理异常 - 已修复
-5. 登录模块：验证码过期处理不当 - 待修复
-"""
-    
-    result = tool.run({
-        "defect_logs": sample_defects,
-        "current_changes": "本次上线修改了登录模块和订单模块"
-    })
-    print(result)

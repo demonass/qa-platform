@@ -17,15 +17,16 @@ from langchain.chains import LLMChain
 import json
 
 
+class TestCaseGeneratorInput(BaseModel):
+    requirement: str = Field(description="需求描述文本")
+    test_type: Optional[str] = Field(default="all", description="测试类型: all, functional, boundary, exception")
+
+
 class TestCaseGeneratorTool(BaseTool):
     """生成结构化测试用例的工具"""
     
-    name = "test_case_generator"
-    description = "输入需求文本，生成结构化的测试用例 JSON，支持功能测试、边界测试、异常测试"
-    
-    class InputSchema(BaseModel):
-        requirement: str = Field(description="需求描述文本")
-        test_type: Optional[str] = Field(default="all", description="测试类型: all, functional, boundary, exception")
+    name: str = "test_case_generator"
+    description: str = "输入需求文本，生成结构化的测试用例 JSON，支持功能测试、边界测试、异常测试"
     
     def _run(self, requirement: str, test_type: str = "all") -> str:
         """执行测试用例生成"""
@@ -38,7 +39,6 @@ class TestCaseGeneratorTool(BaseTool):
                 openai_api_base=llm_config["api_base"],
             )
             
-            # 根据测试类型构建提示词
             test_type_desc = {
                 "all": "功能测试、边界测试和异常测试",
                 "functional": "功能测试",
@@ -78,23 +78,11 @@ class TestCaseGeneratorTool(BaseTool):
             chain = LLMChain(llm=llm, prompt=prompt)
             result = chain.run(requirement=requirement, test_type_desc=test_type_desc.get(test_type, "功能测试"))
             
-            # 尝试解析 JSON
             try:
                 data = json.loads(result)
                 return json.dumps(data, ensure_ascii=False, indent=2)
             except:
-                # 如果不是有效 JSON，返回原始结果
                 return f"生成结果（非 JSON 格式）：\n{result}"
                 
         except Exception as e:
             return f"测试用例生成失败: {str(e)}"
-
-
-# 测试工具
-if __name__ == "__main__":
-    tool = TestCaseGeneratorTool()
-    result = tool.run({
-        "requirement": "用户登录功能：用户名长度为3-20个字符，密码长度为6-16个字符，支持手机号登录",
-        "test_type": "all"
-    })
-    print(result)
