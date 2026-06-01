@@ -40,3 +40,6 @@ logs/
 
 # Documents & Knowledge Base
 document/
+
+# Data (SQLite DB, etc.)
+data/

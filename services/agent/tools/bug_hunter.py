@@ -24,11 +24,12 @@ class BugHunterInput(BaseModel):
 
 class BugHunterTool(BaseTool):
     """预测高风险模块的工具"""
-    
+
     name: str = "bug_hunter"
-    description: str = "输入历史缺陷日志，预测本次上线的高风险模块，提供风险评估报告"
-    
-    def _run(self, defect_logs: str, current_changes: str = "") -> str:
+    description: str = "输入历史缺陷日志和当前代码变更，预测本次上线的高风险模块，提供风险评估报告。输入格式示例：{\"defect_logs\": \"历史缺陷数据...\", \"current_changes\": \"本次变更...\"}"
+    args_schema: type = BugHunterInput
+
+    def _run(self, defect_logs: str = "", current_changes: str = "") -> str:
         """执行缺陷分析和风险预测"""
         try:
             llm_config = get_llm_config()

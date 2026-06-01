@@ -24,11 +24,12 @@ class TestCaseGeneratorInput(BaseModel):
 
 class TestCaseGeneratorTool(BaseTool):
     """生成结构化测试用例的工具"""
-    
+
     name: str = "test_case_generator"
-    description: str = "输入需求文本，生成结构化的测试用例 JSON，支持功能测试、边界测试、异常测试"
-    
-    def _run(self, requirement: str, test_type: str = "all") -> str:
+    description: str = "输入需求文本，生成结构化的测试用例 JSON，支持功能测试、边界测试、异常测试。输入格式示例：{\"requirement\": \"用户登录功能\", \"test_type\": \"all\"}"
+    args_schema: type = TestCaseGeneratorInput
+
+    def _run(self, requirement: str = "", test_type: str = "all") -> str:
         """执行测试用例生成"""
         try:
             llm_config = get_llm_config()

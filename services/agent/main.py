@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service
+from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service, stream_chat_response
 from document_processor import process_document, DocumentProcessor
 from config import LLM_PROVIDER, get_llm_config
 
@@ -127,22 +127,16 @@ async def chat(request: ChatRequest):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    """真正的 token 级流式对话端点"""
     conversation_history.add_message(request.session_id, "user", request.message)
 
     async def event_generator():
         try:
-            result = run_agent_with_tools(request.session_id, request.message)
-
-            conversation_history.add_message(request.session_id, "assistant", result)
-
-            chunk_size = 10
-            for i in range(0, len(result), chunk_size):
-                chunk = result[i:i+chunk_size]
+            async for token in stream_chat_response(request.session_id, request.message):
                 yield {
                     "event": "message",
-                    "data": json.dumps({"content": chunk, "done": False})
+                    "data": json.dumps({"content": token, "done": False})
                 }
-                await asyncio.sleep(0.05)
 
             yield {
                 "event": "message",

@@ -22,11 +22,12 @@ class CodeAnalyzerInput(BaseModel):
 
 class CodeAnalyzerTool(BaseTool):
     """分析 Git 代码变更的工具"""
-    
+
     name: str = "code_analyzer"
     description: str = "分析 Git 代码变更，输入 commit ID 获取代码差异，并提供测试建议"
-    
-    def _run(self, commit_id: str, repo_path: Optional[str] = None) -> str:
+    args_schema: type = CodeAnalyzerInput
+
+    def _run(self, commit_id: str = "", repo_path: Optional[str] = None) -> str:
         """执行代码分析"""
         try:
             if repo_path is None:
