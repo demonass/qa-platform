@@ -11,6 +11,40 @@ export GOPROXY=https://goproxy.cn,direct
 echo "🚀 启动 AI 测试平台..."
 echo ""
 
+# 端口检查函数
+check_port() {
+    local port=$1
+    local service=$2
+    
+    if command -v lsof &>/dev/null; then
+        if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+            echo "❌ 错误：端口 $port 已被占用（$service）"
+            echo "请先释放该端口，或使用其他端口"
+            exit 1
+        fi
+    elif command -v netstat &>/dev/null; then
+        if netstat -tuln | grep -q ":$port "; then
+            echo "❌ 错误：端口 $port 已被占用（$service）"
+            echo "请先释放该端口，或使用其他端口"
+            exit 1
+        fi
+    elif command -v ss &>/dev/null; then
+        if ss -tuln | grep -q ":$port "; then
+            echo "❌ 错误：端口 $port 已被占用（$service）"
+            echo "请先释放该端口，或使用其他端口"
+            exit 1
+        fi
+    fi
+    
+    echo "✅ 端口 $port 可用（$service）"
+}
+
+echo "🔍 检查端口占用情况..."
+check_port 8000 "Python Agent"
+check_port 8081 "Go Backend"
+check_port 3000 "Frontend"
+echo ""
+
 echo "📦 1. 启动 Python Agent 服务 (端口 8000)..."
 cd "$SCRIPT_DIR/services/agent"
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY

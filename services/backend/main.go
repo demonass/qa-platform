@@ -14,14 +14,13 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-)
-
-const (
-	AgentServiceURL = "http://127.0.0.1:8000"
+	"github.com/joho/godotenv"
 )
 
 var (
-	AuthToken = os.Getenv("AUTH_TOKEN")
+	AgentServiceURL string
+	AuthToken       string
+	Port            string
 )
 
 type ChatRequest struct {
@@ -116,12 +115,34 @@ func loggingMiddleware() gin.HandlerFunc {
 	}
 }
 
+func loadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
+
+	AgentServiceURL = getEnv("AGENT_SERVICE_URL", "http://127.0.0.1:8000")
+	AuthToken = getEnv("AUTH_TOKEN", "")
+	Port = getEnv("PORT", "8081")
+}
+
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
 func main() {
+	loadEnv()
+
 	if AuthToken == "" {
 		log.Println("WARNING: AUTH_TOKEN not set, authentication disabled")
 	}
 
 	log.Println("Backend service starting...")
+	log.Printf("Agent Service URL: %s", AgentServiceURL)
+	log.Printf("Listening on port: %s", Port)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -154,13 +175,8 @@ func main() {
 		api.POST("/export", handleExport)
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8081"
-	}
-
-	log.Printf("Backend service starting on port %s...", port)
-	if err := r.Run(":" + port); err != nil {
+	log.Printf("Backend service starting on port %s...", Port)
+	if err := r.Run(":" + Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

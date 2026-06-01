@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE}
+      - MODEL_NAME=${MODEL_NAME}
+    volumes:
+      - ./services/agent:/app
+      - ./data:/app/data
+    networks:
+      - qa-platform-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - AGENT_SERVICE_URL=http://agent:8000
+      - AUTH_TOKEN=${AUTH_TOKEN}
+    depends_on:
+      - agent
+    networks:
+      - qa-platform-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8081
+    depends_on:
+      - backend
+    networks:
+      - qa-platform-network
+    restart: unless-stopped
+
+networks:
+  qa-platform-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
