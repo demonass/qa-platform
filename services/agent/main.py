@@ -4,10 +4,11 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import qa_agent, conversation_history, run_agent_with_history
+from agent_service import conversation_history, run_agent_with_history
+from intent_detector import detect_intent, Intent
 from config import LLM_PROVIDER, get_llm_config
 
-app = FastAPI(title="QA Agent Service", version="1.1.0")
+app = FastAPI(title="QA Agent Service", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +47,19 @@ async def get_config():
         "model": llm_config["model"],
         "api_base": llm_config["api_base"],
         "version": "2.0.0"
+    }
+
+
+class IntentRequest(BaseModel):
+    message: str
+
+
+@app.post("/intent")
+async def detect_intent_endpoint(request: IntentRequest):
+    intent = detect_intent(request.message)
+    return {
+        "intent": intent.value,
+        "message": request.message
     }
 
 
