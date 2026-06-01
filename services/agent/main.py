@@ -91,7 +91,7 @@ async def detect_intent(request: IntentRequest):
                     if sim > max_sim:
                         max_sim = sim
             result["confidence"] = round(max_sim, 4)
-            result["model_used"] = "all-MiniLM-L6-v2"
+            result["model_used"] = "bge-base-zh-v1.5"
         
         return result
     except Exception as e:

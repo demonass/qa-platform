@@ -5,6 +5,8 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
 from langchain.chains import LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain.schema import messages_to_dict, messages_from_dict
 from config import get_llm_config
 from intent_detector import Intent, detect_intent, INTENT_RESPONSES
 
@@ -15,19 +17,33 @@ for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
 
 class ConversationHistory:
     def __init__(self):
-        self.sessions: Dict[str, List[dict]] = {}
+        self.sessions: Dict[str, ConversationBufferMemory] = {}
 
-    def get_history(self, session_id: str) -> List[dict]:
-        return self.sessions.get(session_id, [])
+    def get_memory(self, session_id: str) -> ConversationBufferMemory:
+        if session_id not in self.sessions:
+            self.sessions[session_id] = ConversationBufferMemory(
+                memory_key="chat_history",
+                return_messages=True,
+                max_token_limit=4096
+            )
+        return self.sessions[session_id]
 
     def add_message(self, session_id: str, role: str, content: str):
+        memory = self.get_memory(session_id)
+        if role == "user":
+            memory.chat_memory.add_user_message(content)
+        else:
+            memory.chat_memory.add_ai_message(content)
+
+    def get_history(self, session_id: str) -> List[dict]:
         if session_id not in self.sessions:
-            self.sessions[session_id] = []
-        self.sessions[session_id].append({"role": role, "content": content})
+            return []
+        messages = self.sessions[session_id].chat_memory.messages
+        return messages_to_dict(messages)
 
     def clear_history(self, session_id: str):
         if session_id in self.sessions:
-            self.sessions[session_id] = []
+            del self.sessions[session_id]
 
     def format_history(self, session_id: str) -> str:
         history = self.get_history(session_id)
@@ -35,8 +51,8 @@ class ConversationHistory:
             return "（无历史对话）"
         formatted = []
         for msg in history[-6:]:
-            role = "用户" if msg["role"] == "user" else "助手"
-            formatted.append(f"{role}: {msg['content']}")
+            role = "用户" if msg["type"] == "human" else "助手"
+            formatted.append(f"{role}: {msg['data']['content']}")
         return "\n".join(formatted)
 
 
@@ -206,9 +222,16 @@ def handle_intent(intent: Intent, user_input: str) -> str:
 def run_agent_with_history(session_id: str, user_input: str) -> str:
     intent = detect_intent(user_input)
     
+    history_text = conversation_history.format_history(session_id)
+    
+    if history_text and history_text != "（无历史对话）":
+        user_input_with_history = f"历史对话：\n{history_text}\n\n当前请求：{user_input}"
+    else:
+        user_input_with_history = user_input
+    
     prefix = INTENT_RESPONSES.get(intent)
     if prefix:
-        result = handle_intent(intent, user_input)
+        result = handle_intent(intent, user_input_with_history)
         return f"{prefix}\n\n{result}"
     
-    return handle_intent(intent, user_input)
+    return handle_intent(intent, user_input_with_history)
