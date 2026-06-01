@@ -55,11 +55,11 @@ async def get_config():
 async def detect_intent(request: IntentRequest):
     from agent_service import Intent, detect_intent
     from intent_detector import DETECTION_METHOD, DETECTION_METHOD_DESCRIPTION, intent_classifier
-    
+
     try:
         intent = detect_intent(request.message)
         intent_name = intent.name if isinstance(intent, Intent) else str(intent)
-        
+
         intent_descriptions = {
             "TEST_CASE": "测试用例生成",
             "TEST_PLAN": "测试计划制定",
@@ -68,11 +68,11 @@ async def detect_intent(request: IntentRequest):
             "RUN_TESTS": "测试执行",
             "DEFAULT": "默认回答"
         }
-        
+
         description = intent_descriptions.get(intent_name, "未知意图")
-        
+
         from intent_detector import INTENT_SAMPLES
-        
+
         result = {
             "intent": intent_name,
             "description": description,
@@ -80,7 +80,7 @@ async def detect_intent(request: IntentRequest):
             "detection_method_description": DETECTION_METHOD_DESCRIPTION,
             "message": f"输入已识别为「{description}」意图"
         }
-        
+
         if intent_classifier is not None:
             text_embedding = intent_classifier.embed_text(request.message)
             max_sim = 0
@@ -93,7 +93,7 @@ async def detect_intent(request: IntentRequest):
                         max_sim = sim
             result["confidence"] = round(max_sim, 4)
             result["model_used"] = "bge-base-zh-v1.5"
-        
+
         return result
     except Exception as e:
         return {
@@ -110,7 +110,6 @@ async def chat(request: ChatRequest):
     try:
         conversation_history.add_message(request.session_id, "user", request.message)
 
-        # 使用工具增强的 Agent
         result = run_agent_with_tools(request.session_id, request.message)
 
         conversation_history.add_message(request.session_id, "assistant", result)
@@ -126,13 +125,12 @@ async def chat(request: ChatRequest):
         )
 
 
-@chat_stream
+@app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
     conversation_history.add_message(request.session_id, "user", request.message)
 
     async def event_generator():
         try:
-            # 使用工具增强的 Agent
             result = run_agent_with_tools(request.session_id, request.message)
 
             conversation_history.add_message(request.session_id, "assistant", result)
@@ -204,7 +202,7 @@ class RAGQueryRequest(BaseModel):
 async def rag_query(request: RAGQueryRequest):
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     result = rag_service.query(request.question)
     if result["success"]:
         return {
@@ -220,7 +218,7 @@ async def rag_query(request: RAGQueryRequest):
 async def rag_reload():
     if not rag_service:
         raise HTTPException(status_code=503, detail="RAG service not available")
-    
+
     try:
         rag_service.initialize()
         return {"status": "success", "message": "RAG index reloaded"}
@@ -232,15 +230,13 @@ async def rag_reload():
 async def rag_status():
     if not rag_service:
         return {"status": "not_available", "message": "RAG service not initialized"}
-    
+
     return {"status": "available", "message": "RAG service is ready"}
 
 
-# ==================== 文档处理 API ====================
-
 class DocumentProcessRequest(BaseModel):
     content: str
-    strategy: str = "semantic"  # recursive, semantic, topic
+    strategy: str = "semantic"
     target_chunks: int = 5
 
 
@@ -252,35 +248,19 @@ class DocumentChunkRequest(BaseModel):
 
 @app.post("/document/process")
 async def document_process(request: DocumentProcessRequest):
-    """
-    智能文档处理 API
-    
-    支持三种切分策略：
-    - recursive: 递归字符切分（基于标点符号）
-    - semantic: Max-Min 语义切分（推荐）
-    - topic: 大模型主题识别切分
-    
-    Args:
-        content: 文档内容
-        strategy: 切分策略
-        target_chunks: 目标切分数量（仅对 semantic 策略有效）
-    
-    Returns:
-        切分后的模块列表
-    """
     try:
         if not request.content.strip():
             raise HTTPException(status_code=400, detail="文档内容不能为空")
-        
+
         if request.strategy not in ["recursive", "semantic", "topic"]:
             raise HTTPException(status_code=400, detail="无效的切分策略")
-        
+
         result = process_document(
             text=request.content,
             strategy=request.strategy,
             target_chunks=request.target_chunks
         )
-        
+
         return {
             "status": "success",
             "strategy": request.strategy,
@@ -293,30 +273,17 @@ async def document_process(request: DocumentProcessRequest):
 
 @app.post("/document/chunk")
 async def document_chunk(request: DocumentChunkRequest):
-    """
-    简单文档切分 API
-    
-    使用递归字符切分器进行切分
-    
-    Args:
-        content: 文档内容
-        chunk_size: 每个 chunk 的大小
-        chunk_overlap: chunk 之间的重叠大小
-    
-    Returns:
-        切分后的文本块列表
-    """
     try:
         if not request.content.strip():
             raise HTTPException(status_code=400, detail="文档内容不能为空")
-        
+
         processor = DocumentProcessor(
             chunk_size=request.chunk_size,
             chunk_overlap=request.chunk_overlap
         )
-        
+
         chunks = processor.split_by_recursive_char(request.content)
-        
+
         return {
             "status": "success",
             "chunk_count": len(chunks),
@@ -332,51 +299,26 @@ async def document_upload(
     strategy: str = "semantic",
     target_chunks: int = 5
 ):
-    """
-    文档上传 API
-    
-    支持上传 Word、PDF、TXT、Markdown 等格式的文档
-    
-    Args:
-        file: 上传的文件
-        strategy: 切分策略 (recursive, semantic, topic)
-        target_chunks: 目标切分数量
-    
-    Returns:
-        切分后的模块列表
-    """
     try:
-        # 支持的文件类型
-        allowed_types = [
-            "text/plain",
-            "text/markdown",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/pdf",
-        ]
-        
-        # 支持的文件扩展名
         allowed_extensions = [".txt", ".md", ".docx", ".pdf"]
-        
+
         filename = file.filename.lower()
         file_extension = None
-        
+
         for ext in allowed_extensions:
             if filename.endswith(ext):
                 file_extension = ext
                 break
-        
+
         if not file_extension:
             raise HTTPException(status_code=400, detail="不支持的文件格式，支持: txt, md, docx, pdf")
-        
-        # 读取文件内容
+
         content = await file.read()
-        
-        # 根据文件类型提取文本
         text_content = ""
-        
+
         if file_extension == ".txt" or file_extension == ".md":
             text_content = content.decode("utf-8", errors="ignore")
-        
+
         elif file_extension == ".docx":
             try:
                 from docx import Document
@@ -387,7 +329,7 @@ async def document_upload(
                 raise HTTPException(status_code=500, detail="需要安装 python-docx 库")
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"解析 Word 文档失败: {str(e)}")
-        
+
         elif file_extension == ".pdf":
             try:
                 from PyPDF2 import PdfReader
@@ -398,17 +340,16 @@ async def document_upload(
                 raise HTTPException(status_code=500, detail="需要安装 PyPDF2 库")
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"解析 PDF 文档失败: {str(e)}")
-        
+
         if not text_content.strip():
             raise HTTPException(status_code=400, detail="无法从文件中提取文本内容")
-        
-        # 使用智能切分处理文档
+
         result = process_document(
             text=text_content,
             strategy=strategy,
             target_chunks=target_chunks
         )
-        
+
         return {
             "status": "success",
             "filename": file.filename,
