@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import qa_agent, conversation_history, run_agent_with_history, rag_service
+from agent_service import conversation_history, run_agent_with_history, rag_service
 from config import LLM_PROVIDER, get_llm_config
 
 app = FastAPI(title="QA Agent Service", version="1.1.0")
@@ -22,15 +22,16 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
 
-
 class ChatResponse(BaseModel):
     response: str
     status: str
 
-
 class ExportRequest(BaseModel):
     session_id: str = "default"
     format: str = "markdown"
+
+class IntentRequest(BaseModel):
+    message: str
 
 
 @app.get("/health")
@@ -47,6 +48,60 @@ async def get_config():
         "api_base": llm_config["api_base"],
         "version": "2.0.0"
     }
+
+
+@app.post("/intent")
+async def detect_intent(request: IntentRequest):
+    from agent_service import Intent, detect_intent
+    from intent_detector import DETECTION_METHOD, DETECTION_METHOD_DESCRIPTION, intent_classifier
+    
+    try:
+        intent = detect_intent(request.message)
+        intent_name = intent.name if isinstance(intent, Intent) else str(intent)
+        
+        intent_descriptions = {
+            "TEST_CASE": "测试用例生成",
+            "TEST_PLAN": "测试计划制定",
+            "CODE_ANALYSIS": "代码分析",
+            "RAG_QA": "知识库问答",
+            "RUN_TESTS": "测试执行",
+            "DEFAULT": "默认回答"
+        }
+        
+        description = intent_descriptions.get(intent_name, "未知意图")
+        
+        from intent_detector import INTENT_SAMPLES
+        
+        result = {
+            "intent": intent_name,
+            "description": description,
+            "detection_method": DETECTION_METHOD,
+            "detection_method_description": DETECTION_METHOD_DESCRIPTION,
+            "message": f"输入已识别为「{description}」意图"
+        }
+        
+        if intent_classifier is not None:
+            text_embedding = intent_classifier.embed_text(request.message)
+            max_sim = 0
+            target_intent = Intent[intent_name] if intent_name in Intent.__members__ else None
+            if target_intent and target_intent in INTENT_SAMPLES:
+                for sample in INTENT_SAMPLES[target_intent]:
+                    sample_embedding = intent_classifier.embed_text(sample)
+                    sim = intent_classifier.cosine_similarity(text_embedding, sample_embedding)
+                    if sim > max_sim:
+                        max_sim = sim
+            result["confidence"] = round(max_sim, 4)
+            result["model_used"] = "all-MiniLM-L6-v2"
+        
+        return result
+    except Exception as e:
+        return {
+            "intent": "UNKNOWN",
+            "description": "未知意图",
+            "detection_method": DETECTION_METHOD,
+            "detection_method_description": DETECTION_METHOD_DESCRIPTION,
+            "message": f"意图检测失败: {str(e)}"
+        }
 
 
 @app.post("/chat")
