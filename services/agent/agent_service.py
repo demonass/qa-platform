@@ -1,9 +1,10 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
+from langchain.chains import LLMChain
 from config import get_llm_config
 from intent_detector import Intent, detect_intent, INTENT_RESPONSES
 
@@ -41,6 +42,7 @@ class ConversationHistory:
 
 conversation_history = ConversationHistory()
 
+
 SYSTEM_PROMPT = """你是一位拥有10年经验的资深QA测试工程师，精通软件测试理论和实践。
 
 你的专长：
@@ -62,177 +64,151 @@ SYSTEM_PROMPT = """你是一位拥有10年经验的资深QA测试工程师，精
 
 请根据用户的需求生成专业的测试用例。"""
 
-TEST_PLAN_PROMPT = """你是一位拥有10年经验的资深QA测试经理，精通测试计划制定和测试管理。
 
-你的专长：
-1. 制定完整的测试计划（Test Plan）
-2. 定义测试范围、策略和方法
-3. 规划测试资源、进度和里程碑
-4. 识别测试风险并制定应对策略
-5. 协调测试团队工作
+TEST_CASE_PROMPT = """你是一位专业的测试工程师，请根据以下用户需求生成详细的测试用例：
 
-输出规范：
-1. 测试计划应包含：测试范围、测试目标、测试策略、资源计划、进度安排、风险评估
-2. 使用Markdown格式输出，层次清晰
-3. 包含具体的里程碑和时间节点
+用户需求：{user_input}
 
-请根据用户需求制定专业的测试计划。"""
+请按照以下格式输出测试用例：
+| 用例编号 | 用例名称 | 前置条件 | 操作步骤 | 预期结果 | 优先级 |
+|---------|---------|---------|---------|---------|--------|
+| TC_001 | ... | ... | ... | ... | P0/P1/P2 |
 
-CODE_ANALYSIS_PROMPT = """你是一位代码质量专家，精通静态代码分析和代码审查。
+请确保覆盖：
+1. 正常业务流程测试
+2. 边界条件测试
+3. 异常场景测试
+4. 数据完整性测试
 
-你的专长：
-1. 静态代码分析（代码异味检测）
-2. 代码可维护性评估
-3. 潜在缺陷和漏洞识别
-4. 代码复杂度分析
-5. 编码规范合规性检查
+测试用例数量建议：5-15条。"""
 
-输出规范：
-1. 分析结果应包含：代码质量评分、问题列表、改进建议
-2. 按严重程度分类（Critical/Major/Minor）
-3. 提供具体的代码示例和改进方案
 
-请提供待分析的代码，我将进行专业审查。"""
+TEST_PLAN_PROMPT = """你是一位资深测试经理，请根据以下项目信息制定完整的测试计划：
 
-RAG_QA_PROMPT = """你是一个基于知识库的智能问答助手。
+项目信息：{user_input}
 
-你的职责：
-1. 基于给定的文档/知识库内容回答用户问题
-2. 如果知识库中没有相关信息，明确告知用户
-3. 引用相关文档片段来支撑你的回答
+测试计划应包含以下部分：
+1. 测试范围与目标
+2. 测试策略（功能测试、性能测试、安全测试等）
+3. 测试资源与环境
+4. 测试进度与里程碑
+5. 风险评估与应对措施
+6. 测试交付物
 
-请提供您的问题和相关的知识库内容。"""
+请输出结构化的测试计划文档。"""
 
-RUN_TESTS_PROMPT = """你是一个测试执行引擎，负责协调和执行测试用例。
 
-你的职责：
-1. 接收测试用例列表
-2. 模拟执行测试用例
-3. 记录测试结果（通过/失败/阻塞）
-4. 生成测试执行报告
+CODE_ANALYSIS_PROMPT = """你是一位代码质量专家，请对以下代码进行全面分析：
 
-输入格式：
-- 测试用例列表（通常是多条TC_开头的用例）
-- 每个用例应包含：用例编号、操作步骤、预期结果
+代码内容：{user_input}
+
+分析维度：
+1. 代码结构与可读性
+2. 潜在缺陷与安全漏洞
+3. 性能优化建议
+4. 代码复杂度评估
+5. 编码规范合规性
+
+请输出详细的分析报告和改进建议。"""
+
+
+RAG_QA_PROMPT = """请根据知识库内容回答用户问题：
+
+用户问题：{user_input}
+
+知识库内容：
+{context}
+
+请基于知识库内容进行回答，如果知识库中没有相关信息，请明确说明。"""
+
+
+RUN_TESTS_PROMPT = """请执行以下测试用例并返回执行结果：
+
+测试用例：{user_input}
 
 输出格式：
 | 用例编号 | 执行状态 | 实际结果 | 备注 |
 |---------|---------|---------|------|
-| TC_001 | 通过/失败/阻塞 | 实际观察到的结果 | 失败原因等 |
-
-请提供要执行的测试用例。"""
-
-CHAT_PROMPT = """你是一个友好的AI助手，可以回答各种问题并与用户进行日常对话。
-
-你的特点：
-1. 回答友好、耐心
-2. 善于解释复杂的概念
-3. 可以讨论技术、生活、学习等话题
-
-请与用户进行自然的对话。"""
+| TC_001 | 通过/失败/阻塞 | ... | ... |"""
 
 
-def get_llm(temperature: float = 0.7):
+CHAT_PROMPT = """请友好地回答用户问题：
+
+用户问题：{user_input}
+
+回答要求：
+1. 友好、自然
+2. 信息准确
+3. 如有必要，提供详细解释"""
+
+
+def get_llm():
     llm_config = get_llm_config()
     return ChatOpenAI(
         model=llm_config["model"],
-        temperature=temperature,
+        temperature=0.7,
         openai_api_key=llm_config["api_key"],
         openai_api_base=llm_config["api_base"],
         request_timeout=300
     )
 
 
-def run_qa_agent(user_input: str) -> str:
-    llm = get_llm(0.7)
-
-    tools = [
-        Tool(
-            name="generate_test_cases",
-            func=lambda x: f"已收到测试需求：{x}。正在生成测试用例...",
-            description="根据功能描述生成测试用例"
-        ),
-        Tool(
-            name="analyze_requirements",
-            func=lambda x: f"已收到需求文档：{x}。正在分析测试要点...",
-            description="分析需求文档，提取测试要点"
-        )
-    ]
-
-    prompt = PromptTemplate.from_template(
-        """你是一个专业的 QA 测试工程师，擅长编写测试用例和分析测试需求。
-
-{system_prompt}
-
-当前问题：{input}
-
-你可以使用以下工具：
-{tools}
-
-使用以下格式：
-
-Thought: 你应该思考做什么
-Action: 要使用的工具名称（必须是 [{tool_names}] 之一）
-Action Input: 工具的输入
-Observation: 工具的输出
-... (这个 Thought/Action/Action Input/Observation 可以重复 N 次)
-Thought: 我现在知道最终答案了
-Final Answer: 对用户问题的最终回答
-
-开始！
-
-Thought: {agent_scratchpad}"""
-    )
-
-    agent = create_react_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        handle_parsing_errors=True,
-        max_iterations=3
-    )
-
-    result = agent_executor.invoke({
-        "input": user_input,
-        "system_prompt": SYSTEM_PROMPT
-    })
-    return result["output"]
+def run_simple_llm(prompt_template: str, user_input: str, context: Optional[str] = None) -> str:
+    llm = get_llm()
+    prompt = PromptTemplate.from_template(prompt_template)
+    chain = LLMChain(llm=llm, prompt=prompt)
+    
+    if context:
+        result = chain.run(user_input=user_input, context=context)
+    else:
+        result = chain.run(user_input=user_input)
+    
+    return result
 
 
-def run_simple_llm(prompt: str, user_input: str, temperature: float = 0.7) -> str:
-    llm = get_llm(temperature)
-    full_prompt = f"{prompt}\n\n用户问题：{user_input}"
-    response = llm.invoke(full_prompt)
-    return response.content
+rag_service = None
+
+try:
+    from rag_service import rag_service
+    rag_service.initialize()
+    print("[INFO] RAG 服务初始化成功")
+except Exception as e:
+    print(f"[WARN] RAG 服务初始化失败: {e}")
 
 
 def handle_intent(intent: Intent, user_input: str) -> str:
     if intent == Intent.TEST_CASE:
-        return run_qa_agent(user_input)
-
+        return run_simple_llm(TEST_CASE_PROMPT, user_input)
+    
     elif intent == Intent.TEST_PLAN:
         return run_simple_llm(TEST_PLAN_PROMPT, user_input)
-
+    
     elif intent == Intent.CODE_ANALYSIS:
         return run_simple_llm(CODE_ANALYSIS_PROMPT, user_input)
-
+    
     elif intent == Intent.RAG_QA:
-        return run_simple_llm(RAG_QA_PROMPT, user_input)
-
+        if rag_service:
+            rag_result = rag_service.query(user_input)
+            if rag_result["success"]:
+                return rag_result["answer"]
+            else:
+                return f"RAG 查询失败: {rag_result['answer']}"
+        else:
+            return "RAG 服务未初始化，请先添加文档到 document 目录"
+    
     elif intent == Intent.RUN_TESTS:
         return run_simple_llm(RUN_TESTS_PROMPT, user_input)
-
+    
     else:
         return run_simple_llm(CHAT_PROMPT, user_input)
 
 
 def run_agent_with_history(session_id: str, user_input: str) -> str:
     intent = detect_intent(user_input)
-
+    
     prefix = INTENT_RESPONSES.get(intent)
     if prefix:
         result = handle_intent(intent, user_input)
         return f"{prefix}\n\n{result}"
-
+    
     return handle_intent(intent, user_input)

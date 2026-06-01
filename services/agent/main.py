@@ -4,11 +4,10 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from agent_service import conversation_history, run_agent_with_history
-from intent_detector import detect_intent, Intent
+from agent_service import qa_agent, conversation_history, run_agent_with_history, rag_service
 from config import LLM_PROVIDER, get_llm_config
 
-app = FastAPI(title="QA Agent Service", version="2.0.0")
+app = FastAPI(title="QA Agent Service", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,19 +46,6 @@ async def get_config():
         "model": llm_config["model"],
         "api_base": llm_config["api_base"],
         "version": "2.0.0"
-    }
-
-
-class IntentRequest(BaseModel):
-    message: str
-
-
-@app.post("/intent")
-async def detect_intent_endpoint(request: IntentRequest):
-    intent = detect_intent(request.message)
-    return {
-        "intent": intent.value,
-        "message": request.message
     }
 
 
@@ -150,6 +136,46 @@ async def export_conversation(request: ExportRequest):
 
     else:
         raise HTTPException(status_code=400, detail="Unsupported format. Use 'markdown' or 'text'")
+
+
+class RAGQueryRequest(BaseModel):
+    question: str
+
+
+@app.post("/rag/query")
+async def rag_query(request: RAGQueryRequest):
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    result = rag_service.query(request.question)
+    if result["success"]:
+        return {
+            "answer": result["answer"],
+            "sources": result["sources"],
+            "status": "success"
+        }
+    else:
+        raise HTTPException(status_code=500, detail=result["answer"])
+
+
+@app.post("/rag/reload")
+async def rag_reload():
+    if not rag_service:
+        raise HTTPException(status_code=503, detail="RAG service not available")
+    
+    try:
+        rag_service.initialize()
+        return {"status": "success", "message": "RAG index reloaded"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reload RAG index: {str(e)}")
+
+
+@app.get("/rag/status")
+async def rag_status():
+    if not rag_service:
+        return {"status": "not_available", "message": "RAG service not initialized"}
+    
+    return {"status": "available", "message": "RAG service is ready"}
 
 
 if __name__ == "__main__":
