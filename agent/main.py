@@ -323,10 +323,37 @@ async def document_upload(
                 from docx import Document
                 import io
                 doc = Document(io.BytesIO(content))
+                
+                # 提取段落文本
                 paragraphs = [para.text for para in doc.paragraphs]
                 text_content = "\n".join([p for p in paragraphs if p.strip()])
                 print(f"[INFO] Extracted {len(paragraphs)} paragraphs from DOCX")
                 print(f"[INFO] Extracted text length from DOCX: {len(text_content)} characters")
+                
+                # 如果段落提取为空，尝试从表格中提取
+                if not text_content.strip():
+                    print("[INFO] No text from paragraphs, trying tables...")
+                    table_text = []
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                table_text.append(cell.text)
+                    text_content = "\n".join([t for t in table_text if t.strip()])
+                    print(f"[INFO] Extracted {len(table_text)} cells from tables")
+                    print(f"[INFO] Text length from tables: {len(text_content)} characters")
+                
+                # 尝试使用 docx2txt 作为备选
+                if not text_content.strip():
+                    print("[INFO] Trying docx2txt as fallback...")
+                    try:
+                        import docx2txt
+                        text_content = docx2txt.process(io.BytesIO(content))
+                        print(f"[INFO] Extracted text length from docx2txt: {len(text_content)} characters")
+                    except ImportError:
+                        print("[WARN] docx2txt not installed, skipping")
+                    except Exception as e:
+                        print(f"[WARN] docx2txt failed: {str(e)}")
+                
             except ImportError:
                 raise HTTPException(status_code=500, detail="需要安装 python-docx 库")
             except Exception as e:
@@ -346,7 +373,28 @@ async def document_upload(
                 raise HTTPException(status_code=500, detail=f"解析 PDF 文档失败: {str(e)}")
 
         if not text_content.strip():
-            raise HTTPException(status_code=400, detail="无法从文件中提取文本内容")
+            print("[WARN] No text extracted from document, saving file only")
+            
+            # 保存文件到 document 目录
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            document_dir = os.path.join(base_dir, "document")
+            os.makedirs(document_dir, exist_ok=True)
+            
+            file_path = os.path.join(document_dir, file.filename)
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            print(f"[INFO] File saved to: {file_path}")
+            
+            return {
+                "status": "success",
+                "filename": file.filename,
+                "file_size": len(content),
+                "strategy": strategy,
+                "module_count": 0,
+                "modules": [],
+                "warning": "无法从文件中提取文本内容，文件已保存但无法用于智能问答"
+            }
 
         print(f"[INFO] Processing document with strategy: {strategy}, target_chunks: {target_chunks}")
         result = process_document(

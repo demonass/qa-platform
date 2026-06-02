@@ -31,6 +31,7 @@ interface UploadResult {
   module_count: number
   modules?: Array<{ topic: string; content: string }>
   error?: string
+  warning?: string
 }
 
 export function KnowledgeBaseManager() {
@@ -131,11 +132,19 @@ export function KnowledgeBaseManager() {
       console.log('Upload response data:', data)
 
       if (response.ok && data.status === 'success') {
-        toast({
-          title: '上传成功',
-          description: `${data.filename} 已成功处理，生成了 ${data.module_count} 个模块`,
-          variant: 'default',
-        })
+        if (data.warning) {
+          toast({
+            title: '上传成功',
+            description: `${data.filename} 已保存，但${data.warning}`,
+            variant: 'default',
+          })
+        } else {
+          toast({
+            title: '上传成功',
+            description: `${data.filename} 已成功处理，生成了 ${data.module_count} 个模块`,
+            variant: 'default',
+          })
+        }
         await fetchDocuments()
         await reloadRagIndex()
       } else {
