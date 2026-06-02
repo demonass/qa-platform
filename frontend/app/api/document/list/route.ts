@@ -12,7 +12,7 @@ export async function GET() {
 
     const files = fs.readdirSync(documentDir);
     const documentFiles = files.filter(file => 
-      file.endsWith('.md') || file.endsWith('.txt')
+      file.endsWith('.md') || file.endsWith('.txt') || file.endsWith('.pdf') || file.endsWith('.docx')
     ).map(file => {
       const filePath = path.join(documentDir, file);
       const stats = fs.statSync(filePath);
