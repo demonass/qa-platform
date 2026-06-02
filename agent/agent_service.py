@@ -67,14 +67,14 @@ class ConversationHistory:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_created_at ON messages(session_id, created_at)
             """)
+            # Migration: add user_id column if missing (for existing DBs)
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN user_id TEXT DEFAULT NULL")
+            except sqlite3.OperationalError:
+                pass  # column already exists
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_user_id ON messages(user_id)
             """)
-            # Migration: add user_id column if missing (for existing DBs)
-            try:
-                conn.execute("ALTER TABLE messages ADD COLUMN user_id TEXT")
-            except sqlite3.OperationalError:
-                pass  # column already exists
             conn.commit()
 
         # Seed default admin if SEED_ADMIN env var is set (or no users exist in dev)
