@@ -19,6 +19,18 @@ import {
 import { cn } from '@/lib/utils'
 import { QALogo } from '@/components/qa-logo'
 import { KnowledgeBaseManager } from '@/components/knowledge-base-manager'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export interface ChatSession {
   id: string
