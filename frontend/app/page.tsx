@@ -186,12 +186,22 @@ export default function ChatPage() {
 
   // 选择会话
   const handleSelectSession = useCallback((id: string) => {
+    // 如果正在加载，先停止流式请求
+    if (isLoading) {
+      stop()
+    }
+    
+    // 保存当前会话（如果有）
+    if (currentSessionId && messages.length > 0) {
+      saveSession(currentSessionId, messages)
+    }
+    
     setCurrentSessionId(id)
     // 从 localStorage 加载历史消息
     const storedMessages = loadSessionMessages(id)
     setMessages(storedMessages)
     setMobileSheetOpen(false)
-  }, [setMessages, loadSessionMessages])
+  }, [setMessages, loadSessionMessages, isLoading, stop, currentSessionId, messages, saveSession])
 
   // 删除会话
   const handleDeleteSession = useCallback((id: string) => {
