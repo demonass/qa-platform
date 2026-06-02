@@ -33,9 +33,17 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
               key={message.id}
               className={cn(
                 'flex gap-3',
-                isUser ? 'flex-row-reverse' : 'flex-row'
+                'flex-row'
               )}
             >
+              {/* 用户头像在左边 */}
+              {isUser && (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                  <User className="size-4" />
+                </div>
+              )}
+              
+              {/* AI头像在左边 */}
               {!isUser && (
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Sparkles className="size-4" />
@@ -59,12 +67,6 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                   })}
                 </MessageContent>
               </Message>
-              
-              {isUser && (
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                  <User className="size-4" />
-                </div>
-              )}
             </div>
           )
         })}
