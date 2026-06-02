@@ -290,6 +290,38 @@ export default function ChatPage() {
     toast.success('对话已删除')
   }, [setMessages])
 
+  // 清空所有会话
+  const handleClearAllSessions = useCallback(() => {
+    if (confirm('确定要清空所有对话记录吗？此操作不可恢复。')) {
+      localStorage.removeItem('chat-sessions')
+      setSessions([])
+      setCurrentSessionId(null)
+      setMessages([])
+      toast.success('所有对话已清空')
+    }
+  }, [setMessages])
+
+  // 导出对话数据
+  const handleExportData = useCallback(() => {
+    const stored = localStorage.getItem('chat-sessions')
+    if (!stored) {
+      toast.warning('没有可导出的数据')
+      return
+    }
+    
+    const blob = new Blob([stored], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `qa-chat-data-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    toast.success('数据导出成功')
+  }, [])
+
   // 侧边栏内容
   const sidebarContent = (
     <ChatSidebar
@@ -301,6 +333,8 @@ export default function ChatPage() {
       onRenameSession={handleRenameSession}
       isCollapsed={!isMobile && sidebarCollapsed}
       onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      onClearAllSessions={handleClearAllSessions}
+      onExportData={handleExportData}
     />
   )
 

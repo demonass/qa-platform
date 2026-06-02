@@ -11,7 +11,10 @@ import {
   Settings,
   MoreHorizontal,
   Trash2,
-  Edit3
+  Edit3,
+  Download,
+  HelpCircle,
+  Info
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QALogo } from '@/components/qa-logo'
@@ -43,6 +46,8 @@ interface ChatSidebarProps {
   onRenameSession: (id: string, title: string) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
+  onClearAllSessions?: () => void
+  onExportData?: () => void
 }
 
 export function ChatSidebar({
@@ -53,6 +58,8 @@ export function ChatSidebar({
   onDeleteSession,
   isCollapsed,
   onToggleCollapse,
+  onClearAllSessions,
+  onExportData,
 }: ChatSidebarProps) {
   const [hoveredSession, setHoveredSession] = useState<string | null>(null)
 
@@ -283,10 +290,33 @@ export function ChatSidebar({
 
       {/* Footer */}
       <div className="border-t border-border/50 p-3">
-        <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
-          <Settings className="size-4" />
-          设置与帮助
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
+              <Settings className="size-4" />
+              设置与帮助
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={onClearAllSessions}>
+              <Trash2 className="mr-2 size-4" />
+              清空所有对话
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportData}>
+              <Download className="mr-2 size-4" />
+              导出对话数据
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <HelpCircle className="mr-2 size-4" />
+              使用帮助
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Info className="mr-2 size-4" />
+              关于我们
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   )

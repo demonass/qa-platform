@@ -4,7 +4,6 @@ import type { UIMessage } from 'ai'
 import {
   Conversation,
   ConversationContent,
-  ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
 import {
   Message,
@@ -115,12 +114,11 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                     </MessageAction>
                   </MessageActions>
                 )}
-              </Message>
-            </div>
-          )
-        })}
+            </Message>
+          </div>
+        )
+      })}
       </ConversationContent>
-      <ConversationScrollButton />
     </Conversation>
   )
 }
