@@ -36,7 +36,9 @@ tsconfig.tsbuildinfo
 .env.*.local
 
 # Embedding models
-embedding_models/
+embedding_models/*
+!embedding_models/README.md
+!embedding_models/.gitkeep
 
 # IDE
 .vscode/
@@ -54,7 +56,9 @@ Thumbs.db
 logs/
 
 # Documents & Knowledge Base
-document/
+document/*
+!document/README.md
+!document/.gitkeep
 
 # Data (SQLite DB, etc.)
 data/
