@@ -191,7 +191,7 @@ export function ChatSidebar({
       </div>
 
       {/* Sessions List */}
-      <ScrollArea className="flex-1 px-3">
+      <ScrollArea className="flex-1 px-3 pr-4">
         <div className="space-y-4 pb-4">
           {/* Chats Section */}
           <div>
@@ -201,9 +201,9 @@ export function ChatSidebar({
             </div>
             
             {groupedSessions.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border/50 p-4 text-center">
+              <div className="rounded-lg border border-dashed border-border/50 p-3 text-center">
                 <p className="text-sm font-medium text-foreground">暂无对话记录</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                   开始新对话后，您的历史记录将显示在这里
                 </p>
               </div>
@@ -274,14 +274,14 @@ export function ChatSidebar({
               <BookOpen className="size-3.5" />
               知识库
             </div>
-            <div className="rounded-lg border border-dashed border-border/50 p-3 text-center">
-              <BookOpen className="mx-auto size-8 text-muted-foreground/50" />
-              <p className="mt-2 text-sm font-medium text-foreground truncate">添加知识库</p>
-              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+            <div className="rounded-lg border border-dashed border-border/50 p-2 text-center">
+              <BookOpen className="mx-auto size-6 text-muted-foreground/50" />
+              <p className="mt-1 text-sm font-medium text-foreground">添加知识库</p>
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-tight">
                 上传文档让 AI 更了解您的业务
               </p>
               <Button variant="outline" size="sm" className="mt-2 w-full">
-                <Plus className="mr-1.5 size-3.5" />
+                <Plus className="mr-1 size-3" />
                 上传文档
               </Button>
             </div>
