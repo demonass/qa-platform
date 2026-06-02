@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
+import os
 from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service, stream_chat_response
 from document_processor import process_document, DocumentProcessor
 from config import LLM_PROVIDER, get_llm_config
