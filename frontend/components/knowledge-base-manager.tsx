@@ -98,16 +98,36 @@ export function KnowledgeBaseManager() {
     setUploading(true)
     setUploadProgress(0)
 
+    // 模拟上传进度
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev
+        return prev + 10
+      })
+    }, 200)
+
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('strategy', 'semantic')
+      formData.append('target_chunks', '5')
+
+      console.log('Uploading file:', file.name)
+      console.log('File size:', file.size)
 
       const response = await fetch('/api/document/upload', {
         method: 'POST',
         body: formData,
       })
 
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+
+      console.log('Upload response status:', response.status)
+
       const data: UploadResult = await response.json()
+
+      console.log('Upload response data:', data)
 
       if (response.ok && data.status === 'success') {
         toast({
@@ -120,22 +140,26 @@ export function KnowledgeBaseManager() {
       } else {
         toast({
           title: '上传失败',
-          description: data.status || '文件处理失败',
+          description: data.status || data.error || '文件处理失败',
           variant: 'destructive',
         })
       }
     } catch (error) {
+      clearInterval(progressInterval)
+      console.error('Upload error:', error)
       toast({
         title: '上传失败',
         description: error instanceof Error ? error.message : '未知错误',
         variant: 'destructive',
       })
     } finally {
-      setUploading(false)
-      setUploadProgress(0)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      setTimeout(() => {
+        setUploading(false)
+        setUploadProgress(0)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      }, 500)
     }
   }
 
