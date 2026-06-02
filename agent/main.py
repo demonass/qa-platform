@@ -377,8 +377,9 @@ async def document_upload(
             print("[WARN] No text extracted from document, saving file only")
             
             # 保存文件到 document 目录
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            document_dir = os.path.join(base_dir, "document")
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            document_dir = os.path.join(base_dir, "..", "document")
+            document_dir = os.path.normpath(document_dir)
             os.makedirs(document_dir, exist_ok=True)
             
             file_path = os.path.join(document_dir, file.filename)
@@ -407,8 +408,9 @@ async def document_upload(
         print(f"[INFO] Document processed successfully, {len(result)} modules generated")
 
         # 保存文件到 document 目录
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        document_dir = os.path.join(base_dir, "document")
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        document_dir = os.path.join(base_dir, "..", "document")
+        document_dir = os.path.normpath(document_dir)
         os.makedirs(document_dir, exist_ok=True)
         
         file_path = os.path.join(document_dir, file.filename)

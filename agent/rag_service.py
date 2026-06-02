@@ -53,15 +53,19 @@ class RAGService:
         self.vector_store = None
         self.retriever = None
         self.qa_chain = None
+        # 使用更可靠的路径计算方式
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
         self.document_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "document"
+            current_file_dir,
+            "..", "..", "document"
         )
+        self.document_dir = os.path.normpath(self.document_dir)
+        
         self.embedding_model_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "embedding_models",
-            "all-MiniLM-L6-v2"
+            current_file_dir,
+            "..", "..", "embedding_models", "all-MiniLM-L6-v2"
         )
+        self.embedding_model_path = os.path.normpath(self.embedding_model_path)
 
     def load_documents(self) -> List:
         """加载 document 目录下的所有文档"""
