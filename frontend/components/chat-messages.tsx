@@ -39,6 +39,8 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
           const isUser = message.role === 'user'
           const isLast = index === messages.length - 1
           const isStreaming = isLoading && isLast && !isUser
+          const prevMessage = index > 0 ? messages[index - 1] : null
+          const isPrevUserMessage = prevMessage?.role === 'user'
 
           return (
             <div
@@ -78,26 +80,28 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                     return null
                   })}
                 </MessageContent>
-                <MessageActions>
-                  <MessageAction
-                    tooltip="复制"
-                    onClick={() => onCopy?.(getMessageText(message))}
-                  >
-                    <Copy className="size-4" />
-                  </MessageAction>
-                  <MessageAction
-                    tooltip="重新对话"
-                    onClick={() => onRetry?.(message)}
-                  >
-                    <RotateCcw className="size-4" />
-                  </MessageAction>
-                  <MessageAction
-                    tooltip="删除"
-                    onClick={() => onDelete?.(message.id)}
-                  >
-                    <X className="size-4" />
-                  </MessageAction>
-                </MessageActions>
+                {!isUser && prevMessage && isPrevUserMessage && (
+                  <MessageActions>
+                    <MessageAction
+                      tooltip="复制用户消息"
+                      onClick={() => onCopy?.(getMessageText(prevMessage))}
+                    >
+                      <Copy className="size-4" />
+                    </MessageAction>
+                    <MessageAction
+                      tooltip="重新对话"
+                      onClick={() => onRetry?.(prevMessage)}
+                    >
+                      <RotateCcw className="size-4" />
+                    </MessageAction>
+                    <MessageAction
+                      tooltip="删除用户消息"
+                      onClick={() => onDelete?.(prevMessage.id)}
+                    >
+                      <X className="size-4" />
+                    </MessageAction>
+                  </MessageActions>
+                )}
               </Message>
             </div>
           )
