@@ -40,6 +40,7 @@ export async function POST(req: Request) {
     }
 
     const sessionId = body.id || body.chatId || body.session_id || 'default'
+    const mode = body.mode || 'default'
 
     // 创建 AbortController，用于取消请求
     const abortController = new AbortController()
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             message: userMessage,
             session_id: sessionId,
+            mode: mode,
           }),
           signal: abortController.signal, // 将取消信号传递给fetch
         })

@@ -161,7 +161,7 @@ export default function ChatPage() {
   }, [messages, currentSessionId, setMessages, saveSession, stop])
 
   // 发送消息
-  const handleSend = useCallback((text: string) => {
+  const handleSend = useCallback((text: string, mode: 'default' | 'rag' = 'default') => {
     // 如果是新对话，创建会话
     if (!currentSessionId) {
       const newId = generateId()
@@ -184,7 +184,7 @@ export default function ChatPage() {
       )
     }
     
-    sendMessage({ text })
+    sendMessage({ text, mode })
   }, [currentSessionId, sendMessage])
 
   // 选择会话

@@ -340,7 +340,7 @@ def run_agent_with_history(session_id: str, user_input: str) -> str:
 
 # ==================== 流式输出 ====================
 
-async def stream_chat_response(session_id: str, user_input: str) -> AsyncGenerator[str, None]:
+async def stream_chat_response(session_id: str, user_input: str, mode: str = "default") -> AsyncGenerator[str, None]:
     """
     真正的 token 级流式输出生成器
 
@@ -350,6 +350,10 @@ async def stream_chat_response(session_id: str, user_input: str) -> AsyncGenerat
     """
     intent = detect_intent(user_input)
     llm = get_llm()
+
+    # 如果 mode 为 "rag"，强制使用 RAG 模式
+    if mode == "rag":
+        intent = Intent.RAG_QA
 
     # 拼接历史对话上下文
     history_text = conversation_history.format_history(session_id)

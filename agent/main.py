@@ -23,6 +23,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    mode: str = "default"
 
 class ChatResponse(BaseModel):
     response: str
@@ -133,7 +134,7 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         try:
-            async for token in stream_chat_response(request.session_id, request.message):
+            async for token in stream_chat_response(request.session_id, request.message, request.mode):
                 yield {
                     "event": "message",
                     "data": json.dumps({"content": token, "done": False})

@@ -1,26 +1,29 @@
 'use client'
 
-import { useState, useCallback, KeyboardEvent } from 'react'
+import { useState, useCallback, KeyboardEvent, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Square, Database, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+export type ChatMode = 'default' | 'rag'
+
 interface ChatInputProps {
-  onSend: (text: string) => void
+  onSend: (text: string, mode: ChatMode) => void
   onStop?: () => void
   isLoading: boolean
 }
 
 export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
   const [input, setInput] = useState('')
+  const [mode, setMode] = useState<ChatMode>('default')
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
     if (!trimmed || isLoading) return
-    onSend(trimmed)
+    onSend(trimmed, mode)
     setInput('')
-  }, [input, isLoading, onSend])
+  }, [input, isLoading, onSend, mode])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -35,12 +38,40 @@ export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
   return (
     <div className="sticky bottom-0 border-t border-border/50 bg-background/80 p-4 backdrop-blur-xl">
       <div className="mx-auto max-w-3xl">
+        {/* 模式选择 */}
+        <div className="mb-2 flex justify-center gap-2">
+          <Button
+            variant={mode === 'default' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setMode('default')}
+            className={cn(
+              'gap-2',
+              mode === 'default' && 'bg-primary hover:bg-primary/90'
+            )}
+          >
+            <MessageCircle className="size-3.5" />
+            普通对话
+          </Button>
+          <Button
+            variant={mode === 'rag' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setMode('rag')}
+            className={cn(
+              'gap-2',
+              mode === 'rag' && 'bg-primary hover:bg-primary/90'
+            )}
+          >
+            <Database className="size-3.5" />
+            知识库问答
+          </Button>
+        </div>
+        
         <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/20">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息..."
+            placeholder={mode === 'rag' ? '根据知识库内容提问...' : '输入消息...'}
             className={cn(
               'min-h-[44px] max-h-[200px] flex-1 resize-none border-0 bg-transparent px-3 py-3',
               'placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0'
