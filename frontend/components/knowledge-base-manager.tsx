@@ -149,7 +149,7 @@ export function KnowledgeBaseManager() {
         
         // 自动调用 RAG 服务构建向量索引
         setRagStatus('loading')
-        const toastId = toast({
+        const loadingToast = toast({
           title: '正在构建索引',
           description: '正在为新上传的文档构建向量索引...',
           variant: 'default',
@@ -179,7 +179,7 @@ export function KnowledgeBaseManager() {
           })
           setRagStatus('error')
         } finally {
-          toast.dismiss(toastId)
+          loadingToast.dismiss()
         }
       } else {
         toast({
