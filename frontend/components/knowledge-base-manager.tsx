@@ -146,7 +146,41 @@ export function KnowledgeBaseManager() {
           })
         }
         await fetchDocuments()
-        await reloadRagIndex()
+        
+        // 自动调用 RAG 服务构建向量索引
+        setRagStatus('loading')
+        const toastId = toast({
+          title: '正在构建索引',
+          description: '正在为新上传的文档构建向量索引...',
+          variant: 'default',
+        })
+        
+        try {
+          const ragResponse = await fetch('/api/rag/reload', {
+            method: 'POST',
+          })
+          
+          if (ragResponse.ok) {
+            const ragData = await ragResponse.json()
+            toast.success('索引构建完成', {
+              description: ragData.message || 'RAG 索引已成功更新',
+            })
+            setRagStatus('available')
+          } else {
+            const ragData = await ragResponse.json().catch(() => ({ detail: '索引构建失败' }))
+            toast.error('索引构建失败', {
+              description: ragData.detail || ragData.message || '无法更新 RAG 索引',
+            })
+            setRagStatus('error')
+          }
+        } catch (error) {
+          toast.error('索引构建失败', {
+            description: error instanceof Error ? error.message : '网络错误',
+          })
+          setRagStatus('error')
+        } finally {
+          toast.dismiss(toastId)
+        }
       } else {
         toast({
           title: '上传失败',
