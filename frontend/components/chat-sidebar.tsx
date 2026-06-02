@@ -274,13 +274,13 @@ export function ChatSidebar({
               <BookOpen className="size-3.5" />
               知识库
             </div>
-            <div className="rounded-lg border border-dashed border-border/50 p-4 text-center">
+            <div className="rounded-lg border border-dashed border-border/50 p-3 text-center">
               <BookOpen className="mx-auto size-8 text-muted-foreground/50" />
-              <p className="mt-2 text-sm font-medium text-foreground">添加知识库</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-2 text-sm font-medium text-foreground truncate">添加知识库</p>
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                 上传文档让 AI 更了解您的业务
               </p>
-              <Button variant="outline" size="sm" className="mt-3">
+              <Button variant="outline" size="sm" className="mt-2 w-full">
                 <Plus className="mr-1.5 size-3.5" />
                 上传文档
               </Button>
