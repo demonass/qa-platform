@@ -126,9 +126,30 @@ class RAGService:
                 
                 for file_path in docx_files:
                     try:
-                        from docx import Document
-                        doc = Document(str(file_path))
-                        content = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+                        content = ""
+                        
+                        # 优先使用 docx2txt（更可靠）
+                        try:
+                            import docx2txt
+                            content = docx2txt.process(str(file_path))
+                            print(f"[INFO] 使用 docx2txt 提取了 {len(content)} 字符")
+                        except ImportError:
+                            print(f"[WARN] docx2txt 未安装，尝试 python-docx")
+                        except Exception as e:
+                            print(f"[WARN] docx2txt 失败: {e}")
+                        
+                        # 如果 docx2txt 失败，尝试 python-docx
+                        if not content.strip():
+                            try:
+                                from docx import Document
+                                doc = Document(str(file_path))
+                                content = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+                                print(f"[INFO] 使用 python-docx 提取了 {len(content)} 字符")
+                            except ImportError:
+                                print(f"[WARN] python-docx 未安装")
+                            except Exception as e:
+                                print(f"[WARN] python-docx 失败: {e}")
+                        
                         if content.strip():
                             documents.append({
                                 "page_content": content,
@@ -136,8 +157,6 @@ class RAGService:
                             })
                         else:
                             print(f"[WARN] DOCX 文件 {file_path} 内容为空")
-                    except ImportError:
-                        print(f"[WARN] python-docx 未安装，无法加载 {file_path}")
                     except Exception as e:
                         print(f"[WARN] 加载 {file_path} 失败: {e}")
                 
