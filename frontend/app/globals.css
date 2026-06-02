@@ -123,3 +123,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide Next.js DevTools button */
+[data-nextjs-devtools] {
+  display: none !important;
+}
+
+.nextjs-devtools {
+  display: none !important;
+}
+
+#__next_devtools__ {
+  display: none !important;
+}

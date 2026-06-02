@@ -6,8 +6,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  devtools: {
-    enabled: false,
+  experimental: {
+    devtools: false,
   },
 }
 
