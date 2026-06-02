@@ -8,6 +8,7 @@ try:
     from langchain.vectorstores import FAISS
     from langchain.chains import RetrievalQA
     from langchain_openai import ChatOpenAI
+    from langchain_openai import OpenAIEmbeddings
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
@@ -192,12 +193,37 @@ class RAGService:
     def create_vector_store(self, chunks: List):
         """创建向量存储"""
         try:
-            if not TRANSFORMERS_AVAILABLE:
-                print("[WARN] transformers 不可用")
-                return
+            embeddings = None
             
-            embeddings = CustomEmbeddings(self.embedding_model_path)
-            print(f"[INFO] 加载嵌入模型: {self.embedding_model_path}")
+            # 首先尝试使用本地模型
+            if TRANSFORMERS_AVAILABLE:
+                try:
+                    embeddings = CustomEmbeddings(self.embedding_model_path)
+                    print(f"[INFO] 加载本地嵌入模型: {self.embedding_model_path}")
+                except Exception as e:
+                    print(f"[WARN] 本地模型加载失败: {e}")
+            
+            # 如果本地模型失败，尝试使用 OpenAI 嵌入 API
+            if embeddings is None:
+                try:
+                    llm_config = get_llm_config()
+                    api_key = llm_config.get('api_key')
+                    api_base = llm_config.get('api_base')
+                    
+                    if api_key and api_key != 'your-api-key-here':
+                        embeddings = OpenAIEmbeddings(
+                            openai_api_key=api_key,
+                            openai_api_base=api_base
+                        )
+                        print("[INFO] 使用 OpenAI 嵌入 API")
+                    else:
+                        print("[WARN] OpenAI API Key 未配置")
+                except Exception as e:
+                    print(f"[WARN] OpenAI 嵌入 API 失败: {e}")
+            
+            if embeddings is None:
+                print("[WARN] 无法创建嵌入模型")
+                return
             
             texts = [chunk["page_content"] for chunk in chunks]
             metadatas = [chunk["metadata"] for chunk in chunks]
