@@ -273,13 +273,17 @@ async def auth_login(request: LoginRequest):
 
 @app.post("/auth/register")
 async def auth_register(request: RegisterRequest, x_user_role: Optional[str] = Header(None)):
-    """Create a new user (admin only)"""
+    """Create a new user. Admin can set any role; self-registration defaults to 'user'."""
+    # Self-registration: force role to 'user' unless admin
     if x_user_role != "admin":
-        raise HTTPException(status_code=403, detail="仅管理员可以创建用户")
+        request.role = "user"
+
     if not request.username or not request.password:
         raise HTTPException(status_code=400, detail="用户名和密码不能为空")
     if len(request.password) < 6:
         raise HTTPException(status_code=400, detail="密码至少6位")
+    if len(request.username) < 2:
+        raise HTTPException(status_code=400, detail="用户名至少2位")
     try:
         user = conversation_history.add_user(request.username, request.password, request.role)
         return {"status": "success", "user": user}

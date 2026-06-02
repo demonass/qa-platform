@@ -61,4 +61,4 @@ document/*
 !document/.gitkeep
 
 # Data (SQLite DB, etc.)
-data/
+data/backend/main

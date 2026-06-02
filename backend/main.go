@@ -260,6 +260,7 @@ func main() {
 
 	// ── Auth routes (public) ──
 	r.POST("/api/auth/login", handleLogin)
+	r.POST("/api/auth/register", handlePublicRegister)
 
 	// ── Authenticated routes ──
 	api := r.Group("/api")
@@ -361,6 +362,39 @@ func handleLogin(c *gin.Context) {
 		"token": token,
 		"user":  user,
 	})
+}
+
+func handlePublicRegister(c *gin.Context) {
+	var req RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Role == "" {
+		req.Role = "user"
+	}
+
+	jsonData, _ := json.Marshal(req)
+	resp, err := http.Post(
+		AgentServiceURL+"/auth/register",
+		"application/json",
+		bytes.NewReader(jsonData),
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败"})
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		var agentErr map[string]interface{}
+		json.Unmarshal(body, &agentErr)
+		c.JSON(resp.StatusCode, gin.H{"error": agentErr["detail"]})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "注册成功"})
 }
 
 func handleCreateUser(c *gin.Context) {

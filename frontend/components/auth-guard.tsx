@@ -36,8 +36,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const storedToken = localStorage.getItem('qa-token')
     const storedUser = localStorage.getItem('qa-user')
 
-    // Login page is public
-    if (pathname === '/login') {
+    // Login and register pages are public
+    if (pathname === '/login' || pathname === '/register') {
       if (storedToken) {
         router.push('/')
         return
@@ -75,7 +75,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return null
   }
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/register') {
     return <>{children}</>
   }
 
