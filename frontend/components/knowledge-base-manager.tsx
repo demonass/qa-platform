@@ -39,7 +39,7 @@ export function KnowledgeBaseManager() {
   const [isLoading, setIsLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [ragStatus, setRagStatus] = useState<'available' | 'not_available' | 'loading'>('loading')
+  const [ragStatus, setRagStatus] = useState<'available' | 'not_available' | 'loading' | 'error'>('loading')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const formatFileSize = (bytes: number): string => {
@@ -162,20 +162,26 @@ export function KnowledgeBaseManager() {
           
           if (ragResponse.ok) {
             const ragData = await ragResponse.json()
-            toast.success('索引构建完成', {
+            toast({
+              title: '索引构建完成',
               description: ragData.message || 'RAG 索引已成功更新',
+              variant: 'default',
             })
             setRagStatus('available')
           } else {
             const ragData = await ragResponse.json().catch(() => ({ detail: '索引构建失败' }))
-            toast.error('索引构建失败', {
+            toast({
+              title: '索引构建失败',
               description: ragData.detail || ragData.message || '无法更新 RAG 索引',
+              variant: 'destructive',
             })
             setRagStatus('error')
           }
         } catch (error) {
-          toast.error('索引构建失败', {
+          toast({
+            title: '索引构建失败',
             description: error instanceof Error ? error.message : '网络错误',
+            variant: 'destructive',
           })
           setRagStatus('error')
         } finally {
