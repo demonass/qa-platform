@@ -356,6 +356,17 @@ async def document_upload(
 
         print(f"[INFO] Document processed successfully, {len(result)} modules generated")
 
+        # 保存文件到 document 目录
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        document_dir = os.path.join(base_dir, "document")
+        os.makedirs(document_dir, exist_ok=True)
+        
+        file_path = os.path.join(document_dir, file.filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        print(f"[INFO] File saved to: {file_path}")
+
         return {
             "status": "success",
             "filename": file.filename,
