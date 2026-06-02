@@ -80,23 +80,36 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                     return null
                   })}
                 </MessageContent>
-                {!isUser && prevMessage && isPrevUserMessage && (
+                {/* 只在AI消息上显示操作按钮 */}
+                {!isUser && (
                   <MessageActions>
                     <MessageAction
                       tooltip="复制用户消息"
-                      onClick={() => onCopy?.(getMessageText(prevMessage))}
+                      onClick={() => {
+                        if (prevMessage) {
+                          onCopy?.(getMessageText(prevMessage))
+                        }
+                      }}
                     >
                       <Copy className="size-4" />
                     </MessageAction>
                     <MessageAction
                       tooltip="重新对话"
-                      onClick={() => onRetry?.(prevMessage, message.id)}
+                      onClick={() => {
+                        if (prevMessage) {
+                          onRetry?.(prevMessage, message.id)
+                        }
+                      }}
                     >
                       <RotateCcw className="size-4" />
                     </MessageAction>
                     <MessageAction
                       tooltip="删除对话"
-                      onClick={() => onDelete?.(prevMessage.id, message.id)}
+                      onClick={() => {
+                        if (prevMessage) {
+                          onDelete?.(prevMessage.id, message.id)
+                        }
+                      }}
                     >
                       <X className="size-4" />
                     </MessageAction>
