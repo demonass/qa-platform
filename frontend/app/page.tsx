@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { ChatSidebar, ChatSession } from '@/components/chat-sidebar'
@@ -30,14 +30,7 @@ const extractTitle = (text: string) => {
   return cleaned.length > maxLength ? cleaned.slice(0, maxLength) + '...' : cleaned
 }
 
-export interface ChatSession {
-  id: string
-  title: string
-  lastMessage: string
-  updatedAt: Date
-}
-
-interface StoredSession extends ChatSession {
+export interface StoredSession extends ChatSession {
   messages: any[]
 }
 
@@ -136,7 +129,7 @@ export default function ChatPage() {
   // 初始化加载会话列表
   useEffect(() => {
     const loadedSessions = loadSessions()
-    setSessions(loadedSessions.map(s => ({
+    setSessions(loadedSessions.map((s: StoredSession) => ({
       id: s.id,
       title: s.title,
       lastMessage: s.lastMessage,
