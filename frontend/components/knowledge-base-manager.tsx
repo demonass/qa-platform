@@ -30,6 +30,7 @@ interface UploadResult {
   file_size: number
   module_count: number
   modules?: Array<{ topic: string; content: string }>
+  error?: string
 }
 
 export function KnowledgeBaseManager() {
@@ -160,6 +161,37 @@ export function KnowledgeBaseManager() {
           fileInputRef.current.value = ''
         }
       }, 500)
+    }
+  }
+
+  const deleteDocument = async (filename: string) => {
+    try {
+      const response = await fetch(`/api/document/delete?filename=${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        toast({
+          title: '删除成功',
+          description: `${filename} 已删除`,
+          variant: 'default',
+        })
+        await fetchDocuments()
+        await reloadRagIndex()
+      } else {
+        const data = await response.json().catch(() => ({ error: '删除失败' }))
+        toast({
+          title: '删除失败',
+          description: data.error || '文件删除失败',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      toast({
+        title: '删除失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -312,13 +344,7 @@ export function KnowledgeBaseManager() {
                       variant="ghost"
                       size="icon"
                       className="size-5 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        toast({
-                          title: '功能开发中',
-                          description: '文件删除功能即将上线',
-                          variant: 'default',
-                        })
-                      }}
+                      onClick={() => deleteDocument(file.name)}
                     >
                       <Trash2 className="size-3" />
                     </Button>
