@@ -388,7 +388,6 @@ export function ChatSidebar({
             <DropdownMenuItem onClick={() => {
               localStorage.removeItem('qa-token')
               localStorage.removeItem('qa-user')
-              localStorage.removeItem('chat-sessions')
               window.location.href = '/login'
             }}>
               <Info className="mr-2 size-4" />

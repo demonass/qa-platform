@@ -39,7 +39,6 @@ export default function LoginPage() {
         return
       }
 
-      localStorage.removeItem('chat-sessions')
       localStorage.setItem('qa-token', data.token)
       localStorage.setItem('qa-user', JSON.stringify(data.user))
       toast.success(`欢迎回来，${data.user.username}！`)

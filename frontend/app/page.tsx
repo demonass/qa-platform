@@ -60,6 +60,14 @@ export default function ChatPage() {
   const chatInputRef = useRef<ChatInputHandle>(null)
   const isLoading = status === 'streaming' || status === 'submitted'
 
+  // localStorage key scoped to the logged-in user (empty → anonymous)
+  const getSessionsKey = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('qa-user') || '{}')
+      return user.id ? `chat-sessions:${user.id}` : 'chat-sessions'
+    } catch { return 'chat-sessions' }
+  }
+
   // 建议按钮：填入输入框而不自动发送
   const handleSuggestionClick = useCallback((text: string) => {
     chatInputRef.current?.setInput(text)
@@ -68,7 +76,7 @@ export default function ChatPage() {
 
   // 从 localStorage 加载会话
   const loadSessions = useCallback(() => {
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (stored) {
       try {
         const data = JSON.parse(stored)
@@ -86,7 +94,7 @@ export default function ChatPage() {
 
   // 保存会话到 localStorage
   const saveSession = useCallback((sessionId: string, sessionMessages: any[]) => {
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     let sessionsData: StoredSession[] = stored ? JSON.parse(stored) : []
     
     const existingIndex = sessionsData.findIndex(s => s.id === sessionId)
@@ -122,12 +130,12 @@ export default function ChatPage() {
       })
     }
 
-    localStorage.setItem('chat-sessions', JSON.stringify(sessionsData))
+    localStorage.setItem(getSessionsKey(), JSON.stringify(sessionsData))
   }, [])
 
   // 从 localStorage 加载单个会话的消息
   const loadSessionMessages = useCallback((sessionId: string) => {
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (stored) {
       try {
         const sessionsData: StoredSession[] = JSON.parse(stored)
@@ -228,12 +236,12 @@ export default function ChatPage() {
     setSessions(prev => prev.filter(s => s.id !== id))
     
     // 从 localStorage 中删除
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (stored) {
       try {
         const sessionsData: StoredSession[] = JSON.parse(stored)
         const filtered = sessionsData.filter(s => s.id !== id)
-        localStorage.setItem('chat-sessions', JSON.stringify(filtered))
+        localStorage.setItem(getSessionsKey(), JSON.stringify(filtered))
       } catch (e) {
         console.error('Failed to delete session:', e)
       }
@@ -251,14 +259,14 @@ export default function ChatPage() {
       prev.map(s => (s.id === id ? { ...s, pinned: !s.pinned } : s))
     )
 
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (stored) {
       try {
         const sessionsData: StoredSession[] = JSON.parse(stored)
         const updated = sessionsData.map(s =>
           s.id === id ? { ...s, pinned: !(s as any).pinned } : s
         )
-        localStorage.setItem('chat-sessions', JSON.stringify(updated))
+        localStorage.setItem(getSessionsKey(), JSON.stringify(updated))
       } catch (e) {
         console.error('Failed to pin session:', e)
       }
@@ -273,14 +281,14 @@ export default function ChatPage() {
     )
     
     // 更新 localStorage 中的会话
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (stored) {
       try {
         const sessionsData: StoredSession[] = JSON.parse(stored)
         const updated = sessionsData.map(s => 
           s.id === id ? { ...s, title } : s
         )
-        localStorage.setItem('chat-sessions', JSON.stringify(updated))
+        localStorage.setItem(getSessionsKey(), JSON.stringify(updated))
       } catch (e) {
         console.error('Failed to rename session:', e)
       }
@@ -332,7 +340,7 @@ export default function ChatPage() {
   // 清空所有会话
   const handleClearAllSessions = useCallback(() => {
     if (confirm('确定要清空所有对话记录吗？此操作不可恢复。')) {
-      localStorage.removeItem('chat-sessions')
+      localStorage.removeItem(getSessionsKey())
       setSessions([])
       setCurrentSessionId(null)
       setMessages([])
@@ -342,7 +350,7 @@ export default function ChatPage() {
 
   // 导出对话数据
   const handleExportData = useCallback(() => {
-    const stored = localStorage.getItem('chat-sessions')
+    const stored = localStorage.getItem(getSessionsKey())
     if (!stored) {
       toast.warning('没有可导出的数据')
       return

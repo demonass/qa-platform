@@ -66,7 +66,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem('qa-token')
     localStorage.removeItem('qa-user')
-    localStorage.removeItem('chat-sessions')
     setUser(null)
     setToken('')
     router.push('/login')
