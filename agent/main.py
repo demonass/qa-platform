@@ -416,6 +416,11 @@ async def document_upload(
             f.write(content)
         
         print(f"[INFO] File saved to: {file_path}")
+        
+        # 重新加载 RAG 索引
+        print(f"[INFO] Reloading RAG index...")
+        rag_service.initialize()
+        print(f"[INFO] RAG index reloaded")
 
         return {
             "status": "success",
@@ -434,4 +439,6 @@ async def document_upload(
 
 if __name__ == "__main__":
     import uvicorn
+    print("[INFO] Initializing RAG service...")
+    rag_service.initialize()
     uvicorn.run(app, host="127.0.0.1", port=8000)

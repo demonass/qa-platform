@@ -68,11 +68,18 @@ class RAGService:
         documents = []
         
         try:
+            print(f"[DEBUG] 文档目录: {self.document_dir}")
             if os.path.exists(self.document_dir):
+                print(f"[DEBUG] 文档目录存在")
                 md_files = list(Path(self.document_dir).rglob("*.md"))
                 txt_files = list(Path(self.document_dir).rglob("*.txt"))
                 pdf_files = list(Path(self.document_dir).rglob("*.pdf"))
                 docx_files = list(Path(self.document_dir).rglob("*.docx"))
+                
+                print(f"[DEBUG] 找到 {len(md_files)} 个 md 文件")
+                print(f"[DEBUG] 找到 {len(txt_files)} 个 txt 文件")
+                print(f"[DEBUG] 找到 {len(pdf_files)} 个 pdf 文件")
+                print(f"[DEBUG] 找到 {len(docx_files)} 个 docx 文件")
                 
                 for file_path in md_files:
                     try:

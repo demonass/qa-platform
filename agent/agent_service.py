@@ -349,11 +349,15 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
     - 代码分析（需工具调用）：先通过 AgentExecutor 执行工具，再分块输出结果
     """
     intent = detect_intent(user_input)
+    print(f"[DEBUG] 检测到的意图: {intent}")
+    print(f"[DEBUG] 用户输入: {user_input}")
+    
     llm = get_llm()
 
     # 如果 mode 为 "rag"，强制使用 RAG 模式
     if mode == "rag":
         intent = Intent.RAG_QA
+        print(f"[DEBUG] 强制使用 RAG 模式")
 
     # 拼接历史对话上下文
     history_text = conversation_history.format_history(session_id)
@@ -364,8 +368,11 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
 
     # ── RAG 问答：先检索再输出 ──
     if intent == Intent.RAG_QA:
+        print(f"[DEBUG] 使用 RAG 模式")
         if rag_service:
+            print(f"[DEBUG] RAG 服务可用，执行查询")
             rag_result = rag_service.query(user_input_with_history)
+            print(f"[DEBUG] RAG 查询结果: {rag_result}")
             if rag_result["success"]:
                 answer = rag_result["answer"]
                 conversation_history.add_message(session_id, "assistant", answer)
@@ -373,6 +380,7 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
                 return
         # RAG 不可用时回退到普通对话
         intent = Intent.CHAT
+        print(f"[DEBUG] RAG 不可用，回退到普通对话")
 
     # ── 代码分析（需要工具）：先执行 AgentExecutor 再分块输出 ──
     if intent == Intent.CODE_ANALYSIS:
