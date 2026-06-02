@@ -35,7 +35,11 @@ export async function POST(req: Request) {
     const reqHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    if (AUTH_TOKEN) {
+    // Forward client JWT to Go backend
+    const clientAuth = req.headers.get('authorization')
+    if (clientAuth) {
+      reqHeaders['Authorization'] = clientAuth
+    } else if (AUTH_TOKEN) {
       reqHeaders['Authorization'] = `Bearer ${AUTH_TOKEN}`
     }
 

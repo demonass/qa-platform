@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   PanelLeft,
@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Info,
   Pin,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QALogo } from '@/components/qa-logo'
@@ -70,6 +71,14 @@ export function ChatSidebar({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('qa-user') || '{}')
+      setIsAdmin(user.role === 'admin')
+    } catch { setIsAdmin(false) }
+  }, [])
 
   // 按日期分组会话（置顶的排在前面）
   const groupSessionsByDate = (sessions: ChatSession[]) => {
@@ -346,7 +355,19 @@ export function ChatSidebar({
       <KnowledgeBaseManager />
 
       {/* Footer */}
-      <div className="border-t border-border/50 p-3">
+      <div className="border-t border-border/50 p-3 space-y-2">
+        {/* Admin link */}
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={() => window.location.href = '/admin'}
+          >
+            <Shield className="size-4" />
+            用户管理
+          </Button>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
@@ -364,13 +385,13 @@ export function ChatSidebar({
               导出对话数据
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <HelpCircle className="mr-2 size-4" />
-              使用帮助
-            </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              localStorage.removeItem('qa-token')
+              localStorage.removeItem('qa-user')
+              window.location.href = '/login'
+            }}>
               <Info className="mr-2 size-4" />
-              关于我们
+              退出登录
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

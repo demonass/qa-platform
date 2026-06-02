@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
 import os
+from typing import Optional
 from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service, stream_chat_response
 from document_processor import process_document, DocumentProcessor
 from config import LLM_PROVIDER, get_llm_config
@@ -35,6 +36,35 @@ class ExportRequest(BaseModel):
 
 class IntentRequest(BaseModel):
     message: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+class ChangePasswordRequest(BaseModel):
+    user_id: str
+    new_password: str
+
+class SessionListRequest(BaseModel):
+    user_id: Optional[str] = None
+    is_admin: bool = False
+
+
+def _get_user_id(x_user_id: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract user_id from X-User-Id header (set by Go backend after JWT verification)"""
+    return x_user_id
+
+def _get_user_role(x_user_role: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract role from X-User-Role header"""
+    return x_user_role
+
+def _is_admin(x_user_role: Optional[str] = Header(None)) -> bool:
+    return x_user_role == "admin"
 
 
 @app.get("/health")
@@ -108,13 +138,13 @@ async def detect_intent(request: IntentRequest):
 
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, x_user_id: Optional[str] = Header(None)):
     try:
-        conversation_history.add_message(request.session_id, "user", request.message)
+        conversation_history.add_message(request.session_id, "user", request.message, user_id=x_user_id)
 
         result = run_agent_with_tools(request.session_id, request.message)
 
-        conversation_history.add_message(request.session_id, "assistant", result)
+        conversation_history.add_message(request.session_id, "assistant", result, user_id=x_user_id)
 
         return ChatResponse(
             response=result,
@@ -128,13 +158,13 @@ async def chat(request: ChatRequest):
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, x_user_id: Optional[str] = Header(None)):
     """真正的 token 级流式对话端点"""
-    conversation_history.add_message(request.session_id, "user", request.message)
+    conversation_history.add_message(request.session_id, "user", request.message, user_id=x_user_id)
 
     async def event_generator():
         try:
-            async for token in stream_chat_response(request.session_id, request.message, request.mode):
+            async for token in stream_chat_response(request.session_id, request.message, request.mode, user_id=x_user_id):
                 yield {
                     "event": "message",
                     "data": json.dumps({"content": token, "done": False})
@@ -229,6 +259,70 @@ async def rag_status():
 
     return {"status": "available", "message": "RAG service is ready"}
 
+
+# ==================== Auth Endpoints ====================
+
+@app.post("/auth/login")
+async def auth_login(request: LoginRequest):
+    """Verify credentials and return user info. Called by Go backend after it issues JWT."""
+    user = conversation_history.verify_user(request.username, request.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    return {"status": "success", "user": user}
+
+
+@app.post("/auth/register")
+async def auth_register(request: RegisterRequest, x_user_role: Optional[str] = Header(None)):
+    """Create a new user (admin only)"""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可以创建用户")
+    if not request.username or not request.password:
+        raise HTTPException(status_code=400, detail="用户名和密码不能为空")
+    if len(request.password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少6位")
+    try:
+        user = conversation_history.add_user(request.username, request.password, request.role)
+        return {"status": "success", "user": user}
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=f"创建用户失败: {str(e)}")
+
+
+@app.get("/auth/users")
+async def list_users(x_user_role: Optional[str] = Header(None)):
+    """List all users (admin only)"""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可查看")
+    users = conversation_history.list_users()
+    return {"users": users}
+
+
+@app.delete("/auth/users/{user_id}")
+async def delete_user(user_id: str, x_user_role: Optional[str] = Header(None)):
+    """Delete a user (admin only)"""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可删除")
+    ok = conversation_history.delete_user(user_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="无法删除：不能删除最后一个管理员")
+    return {"status": "success"}
+
+
+@app.post("/auth/change-password")
+async def change_password(request: ChangePasswordRequest):
+    """Change a user's password"""
+    conversation_history.change_password(request.user_id, request.new_password)
+    return {"status": "success"}
+
+
+@app.get("/sessions")
+async def list_sessions(x_user_id: Optional[str] = Header(None), x_user_role: Optional[str] = Header(None)):
+    """列出当前用户的会话（admin 可看全部）"""
+    is_admin = (x_user_role == "admin")
+    sessions = conversation_history.list_sessions(user_id=x_user_id, is_admin=is_admin)
+    return {"sessions": sessions}
+
+
+# ==================== Document Endpoints ====================
 
 class DocumentProcessRequest(BaseModel):
     content: str

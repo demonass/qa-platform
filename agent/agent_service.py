@@ -2,6 +2,8 @@ import os
 import sqlite3
 import asyncio
 import threading
+import uuid
+import hashlib
 from typing import Dict, List, Optional, AsyncGenerator
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_react_agent
@@ -38,12 +40,24 @@ class ConversationHistory:
         """初始化数据库表"""
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         with self._get_conn() as conn:
+            # Users table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Messages table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_id TEXT NOT NULL,
                     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
                     content TEXT NOT NULL,
+                    user_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -53,13 +67,89 @@ class ConversationHistory:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_created_at ON messages(session_id, created_at)
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_id ON messages(user_id)
+            """)
+            # Migration: add user_id column if missing (for existing DBs)
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN user_id TEXT")
+            except sqlite3.OperationalError:
+                pass  # column already exists
             conn.commit()
+
+        # Seed default admin if SEED_ADMIN env var is set (or no users exist in dev)
+        seed_admin = os.getenv("SEED_ADMIN", "")
+        if seed_admin and len(self.list_users()) == 0:
+            parts = seed_admin.split(":")
+            if len(parts) >= 2:
+                self.add_user(parts[0], parts[1], parts[2] if len(parts) > 2 else "admin")
+                print(f"[INFO] Seeded admin user: {parts[0]}")
 
     def _get_conn(self):
         """获取数据库连接（线程安全）"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
+
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        """SHA-256 hash (simpler than bcrypt for internal tool, no extra dependency)"""
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    def add_user(self, username: str, password: str, role: str = "user") -> dict:
+        """创建用户，返回用户信息"""
+        user_id = str(uuid.uuid4())
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                (user_id, username, self._hash_password(password), role)
+            )
+            conn.commit()
+        return {"id": user_id, "username": username, "role": role}
+
+    def verify_user(self, username: str, password: str) -> Optional[dict]:
+        """验证用户凭据，成功返回用户信息，失败返回 None"""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT id, username, password_hash, role FROM users WHERE username = ?",
+                (username,)
+            ).fetchone()
+        if row and row["password_hash"] == self._hash_password(password):
+            return {"id": row["id"], "username": row["username"], "role": row["role"]}
+        return None
+
+    def list_users(self) -> List[dict]:
+        """列出所有用户"""
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT id, username, role, created_at FROM users ORDER BY created_at ASC"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_user(self, user_id: str) -> bool:
+        """删除用户，不能删除最后一个 admin"""
+        with self._get_conn() as conn:
+            # Check if this is the last admin
+            admin_count = conn.execute(
+                "SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'"
+            ).fetchone()["cnt"]
+            target = conn.execute(
+                "SELECT role FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if target and target["role"] == "admin" and admin_count <= 1:
+                return False  # refuse to delete last admin
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            conn.commit()
+        return True
+
+    def change_password(self, user_id: str, new_password: str):
+        """修改用户密码"""
+        with self._get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (self._hash_password(new_password), user_id)
+            )
+            conn.commit()
 
     def _load_messages(self, session_id: str) -> List[dict]:
         """从数据库加载会话消息"""
@@ -87,7 +177,7 @@ class ConversationHistory:
             self._memory_cache[session_id] = memory
         return self._memory_cache[session_id]
 
-    def add_message(self, session_id: str, role: str, content: str):
+    def add_message(self, session_id: str, role: str, content: str, user_id: str = None):
         """添加消息并持久化"""
         with self._lock:
             # 确保 memory 已加载
@@ -101,8 +191,8 @@ class ConversationHistory:
             # 持久化到 SQLite
             with self._get_conn() as conn:
                 conn.execute(
-                    "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
-                    (session_id, role, content)
+                    "INSERT INTO messages (session_id, role, content, user_id) VALUES (?, ?, ?, ?)",
+                    (session_id, role, content, user_id)
                 )
                 conn.commit()
 
@@ -142,18 +232,30 @@ class ConversationHistory:
             formatted.append(f"{role}: {msg['data']['content']}")
         return "\n".join(formatted)
 
-    def list_sessions(self) -> List[dict]:
-        """列出所有会话（用于前端会话列表）"""
+    def list_sessions(self, user_id: str = None, is_admin: bool = False) -> List[dict]:
+        """列出会话。普通用户只看自己的，admin 看全部。无 user_id 的消息（旧数据）对所有已验证用户可见。"""
         with self._get_conn() as conn:
-            rows = conn.execute("""
-                SELECT session_id,
-                       MIN(created_at) as created_at,
-                       MAX(created_at) as updated_at,
-                       COUNT(*) as message_count
-                FROM messages
-                GROUP BY session_id
-                ORDER BY updated_at DESC
-            """).fetchall()
+            if is_admin or not user_id:
+                rows = conn.execute("""
+                    SELECT session_id,
+                           MIN(created_at) as created_at,
+                           MAX(created_at) as updated_at,
+                           COUNT(*) as message_count
+                    FROM messages
+                    GROUP BY session_id
+                    ORDER BY updated_at DESC
+                """).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT session_id,
+                           MIN(created_at) as created_at,
+                           MAX(created_at) as updated_at,
+                           COUNT(*) as message_count
+                    FROM messages
+                    WHERE user_id = ? OR user_id IS NULL
+                    GROUP BY session_id
+                    ORDER BY updated_at DESC
+                """, (user_id,)).fetchall()
         return [dict(row) for row in rows]
 
 
@@ -340,7 +442,7 @@ def run_agent_with_history(session_id: str, user_input: str) -> str:
 
 # ==================== 流式输出 ====================
 
-async def stream_chat_response(session_id: str, user_input: str, mode: str = "default") -> AsyncGenerator[str, None]:
+async def stream_chat_response(session_id: str, user_input: str, mode: str = "default", user_id: str = None) -> AsyncGenerator[str, None]:
     """
     真正的 token 级流式输出生成器
 
@@ -375,7 +477,7 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
             print(f"[DEBUG] RAG 查询结果: {rag_result}")
             if rag_result["success"]:
                 answer = rag_result["answer"]
-                conversation_history.add_message(session_id, "assistant", answer)
+                conversation_history.add_message(session_id, "assistant", answer, user_id=user_id)
                 yield answer
                 return
         # RAG 不可用时回退到普通对话
@@ -388,7 +490,7 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         if prefix:
             yield prefix + "\n\n"
         result = run_agent_with_tools(session_id, user_input_with_history)
-        conversation_history.add_message(session_id, "assistant", result)
+        conversation_history.add_message(session_id, "assistant", result, user_id=user_id)
         # AgentExecutor 不支持流式，分块输出（chunk_size=3 接近 token 级别）
         for i in range(0, len(result), 3):
             yield result[i:i+3]
@@ -428,7 +530,7 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         yield error_msg
         full_response += error_msg
 
-    conversation_history.add_message(session_id, "assistant", full_response)
+    conversation_history.add_message(session_id, "assistant", full_response, user_id=user_id)
 
 
 # ==================== Agent Executor 工具调用 ====================

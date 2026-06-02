@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const headers: Record<string, string> = {}
+    const clientAuth = req.headers.get('authorization')
+    if (clientAuth) headers['Authorization'] = clientAuth
+
     const response = await fetch(`${BACKEND_URL}/rag/reload`, {
       method: 'POST',
+      headers,
     });
 
     if (!response.ok) {
