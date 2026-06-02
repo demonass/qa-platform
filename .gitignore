@@ -6,6 +6,10 @@ __pycache__/
 .Python
 venv/
 env/
+*/venv/
+*/env/
+.venv/
+*/.venv/
 
 # Go
 *.exe
@@ -16,12 +20,23 @@ env/
 *.test
 *.out
 go.sum
-backend
+
 
 # Node
 node_modules/
 dist/
 .vite/
+.next/
+pnpm-workspace.yaml
+tsconfig.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Embedding models
+embedding_models/
 
 # IDE
 .vscode/

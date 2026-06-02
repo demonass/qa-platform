@@ -2,12 +2,12 @@ FROM golang:1.22-alpine
 
 WORKDIR /app
 
-COPY services/backend/go.mod .
-COPY services/backend/go.sum .
+COPY backend/go.mod .
+COPY backend/go.sum .
 
 RUN go mod download
 
-COPY services/backend/ .
+COPY backend/ .
 
 RUN go build -o backend .
 

@@ -36,7 +36,7 @@ free_port 3000 "Frontend"
 echo ""
 
 echo "📦 1. 启动 Python Agent 服务 (端口 8000)..."
-cd "$SCRIPT_DIR/services/agent"
+cd "$SCRIPT_DIR/agent"
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
 source ~/ai_env/bin/activate
 pip install -q -r requirements.txt 2>&1 | tail -3
@@ -48,7 +48,7 @@ echo "   Agent PID: $AGENT_PID"
 cd "$SCRIPT_DIR"
 
 echo "🔧 2. 启动 Go 后端服务 (端口 8081)..."
-cd "$SCRIPT_DIR/services/backend"
+cd "$SCRIPT_DIR/backend"
 echo "   下载 Go 依赖..."
 go mod tidy 2>&1 | tail -1
 echo "   Go 后端服务启动中..."
@@ -59,7 +59,7 @@ echo "   Backend PID: $BACKEND_PID"
 cd "$SCRIPT_DIR"
 
 echo "🎨 3. 启动前端服务 (端口 3000)..."
-cd "$SCRIPT_DIR/services/frontend"
+cd "$SCRIPT_DIR/frontend"
 # 彻底清理旧缓存（之前 fuser -k 可能造成 .next 损坏）
 rm -rf .next
 nohup pnpm run dev > /tmp/frontend.log 2>&1 &
