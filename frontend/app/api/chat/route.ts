@@ -41,17 +41,17 @@ export async function POST(req: Request) {
 
     const sessionId = body.id || body.chatId || body.session_id || 'default'
 
-    const stream = createUIMessageStream({
-      async execute({ writer, signal }) {
-        // 创建 AbortController，用于取消请求
-        const abortController = new AbortController()
-        
-        // 监听客户端取消信号
-        signal?.addEventListener('abort', () => {
-          console.log('Client aborted the request')
-          abortController.abort()
-        })
+    // 创建 AbortController，用于取消请求
+    const abortController = new AbortController()
+    
+    // 监听客户端断开连接（通过 req.signal）
+    req.signal?.addEventListener('abort', () => {
+      console.log('Client aborted the request')
+      abortController.abort()
+    })
 
+    const stream = createUIMessageStream({
+      async execute({ writer }) {
         const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
           method: 'POST',
           headers: reqHeaders,
