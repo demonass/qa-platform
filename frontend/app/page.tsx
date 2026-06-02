@@ -45,7 +45,16 @@ export default function ChatPage() {
   const isMobile = useMediaQuery('(max-width: 768px)')
 
   const { messages, sendMessage, status, setMessages, stop } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      // Include JWT token in every chat request
+      headers: () => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('qa-token') : ''
+        const h: Record<string, string> = {}
+        if (token) h['Authorization'] = `Bearer ${token}`
+        return h
+      },
+    }),
   })
 
   const chatInputRef = useRef<ChatInputHandle>(null)

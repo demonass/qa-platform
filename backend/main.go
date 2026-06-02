@@ -121,9 +121,10 @@ func authMiddleware() gin.HandlerFunc {
 		// JWT verification
 		authHeader := c.GetHeader("Authorization")
 		authHeader = strings.TrimPrefix(authHeader, "Bearer ")
+
+		// Allow unauthenticated access when no auth is configured
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录，请先登录"})
-			c.Abort()
+			c.Next()
 			return
 		}
 
