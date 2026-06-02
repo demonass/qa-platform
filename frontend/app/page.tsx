@@ -130,10 +130,10 @@ export default function ChatPage() {
     })
   }, [])
 
-  // 重新对话（先删除AI回复，再重新发送用户消息）
+  // 重新对话（先删除用户消息和AI回复，再重新发送用户消息）
   const handleRetryMessage = useCallback((userMessage: UIMessage, aiMessageId: string) => {
-    // 先删除AI回复消息
-    setMessages(prev => prev.filter(m => m.id !== aiMessageId))
+    // 先删除用户消息和AI回复
+    setMessages(prev => prev.filter(m => m.id !== userMessage.id && m.id !== aiMessageId))
     
     // 提取用户消息文本并重新发送
     const text = userMessage.parts
