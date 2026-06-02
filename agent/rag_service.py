@@ -55,15 +55,17 @@ class RAGService:
         self.qa_chain = None
         # 使用更可靠的路径计算方式
         current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        # agent -> qa-platform -> document
         self.document_dir = os.path.join(
             current_file_dir,
-            "..", "..", "document"
+            "..", "document"
         )
         self.document_dir = os.path.normpath(self.document_dir)
         
+        # agent -> qa-platform -> embedding_models -> all-MiniLM-L6-v2
         self.embedding_model_path = os.path.join(
             current_file_dir,
-            "..", "..", "embedding_models", "all-MiniLM-L6-v2"
+            "..", "embedding_models", "all-MiniLM-L6-v2"
         )
         self.embedding_model_path = os.path.normpath(self.embedding_model_path)
 
