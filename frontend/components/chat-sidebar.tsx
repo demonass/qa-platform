@@ -2,19 +2,19 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
-  PanelLeft, 
-  Plus, 
-  MessageSquare, 
-  BookOpen, 
+import {
+  PanelLeft,
+  Plus,
+  MessageSquare,
+  BookOpen,
   Settings,
-  MoreHorizontal,
+  MoreVertical,
   Trash2,
   Edit3,
   Download,
   HelpCircle,
-  Info
+  Info,
+  Pin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QALogo } from '@/components/qa-logo'
@@ -37,6 +37,7 @@ export interface ChatSession {
   title: string
   lastMessage: string
   updatedAt: Date
+  pinned?: boolean
 }
 
 interface ChatSidebarProps {
@@ -46,6 +47,7 @@ interface ChatSidebarProps {
   onSelectSession: (id: string) => void
   onDeleteSession: (id: string) => void
   onRenameSession: (id: string, title: string) => void
+  onPinSession: (id: string) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
   onClearAllSessions?: () => void
@@ -58,14 +60,18 @@ export function ChatSidebar({
   onNewChat,
   onSelectSession,
   onDeleteSession,
+  onRenameSession,
+  onPinSession,
   isCollapsed,
   onToggleCollapse,
   onClearAllSessions,
   onExportData,
 }: ChatSidebarProps) {
-  const [hoveredSession, setHoveredSession] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
-  // 按日期分组会话
+  // 按日期分组会话（置顶的排在前面）
   const groupSessionsByDate = (sessions: ChatSession[]) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -74,29 +80,42 @@ export function ChatSidebar({
     const lastWeek = new Date(today)
     lastWeek.setDate(lastWeek.getDate() - 7)
 
-    const groups: { label: string; sessions: ChatSession[] }[] = [
+    const pinnedSessions = sessions.filter(s => s.pinned)
+    const unpinnedSessions = sessions.filter(s => !s.pinned)
+
+    const groups: { label: string; sessions: ChatSession[] }[] = []
+
+    // 置顶分组
+    if (pinnedSessions.length > 0) {
+      groups.push({ label: '置顶', sessions: pinnedSessions })
+    }
+
+    // 按日期分组（仅非置顶）
+    const dateGroups: { label: string; sessions: ChatSession[] }[] = [
       { label: '今天', sessions: [] },
       { label: '昨天', sessions: [] },
       { label: '最近 7 天', sessions: [] },
       { label: '更早', sessions: [] },
     ]
 
-    sessions.forEach((session) => {
+    unpinnedSessions.forEach((session) => {
       const date = new Date(session.updatedAt)
       date.setHours(0, 0, 0, 0)
-      
+
       if (date.getTime() === today.getTime()) {
-        groups[0].sessions.push(session)
+        dateGroups[0].sessions.push(session)
       } else if (date.getTime() === yesterday.getTime()) {
-        groups[1].sessions.push(session)
+        dateGroups[1].sessions.push(session)
       } else if (date >= lastWeek) {
-        groups[2].sessions.push(session)
+        dateGroups[2].sessions.push(session)
       } else {
-        groups[3].sessions.push(session)
+        dateGroups[3].sessions.push(session)
       }
     })
 
-    return groups.filter((g) => g.sessions.length > 0)
+    dateGroups.filter(g => g.sessions.length > 0).forEach(g => groups.push(g))
+
+    return groups
   }
 
   const groupedSessions = groupSessionsByDate(sessions)
@@ -191,8 +210,8 @@ export function ChatSidebar({
         </Button>
       </div>
 
-      {/* Sessions List */}
-      <ScrollArea className="flex-1 px-3 pr-4">
+      {/* Sessions List — plain div, no ScrollArea clipping */}
+      <div className="flex-1 overflow-y-auto pl-3 pr-5">
         <div className="space-y-4 pb-4">
           {/* Chats Section */}
           <div>
@@ -218,32 +237,85 @@ export function ChatSidebar({
                         <div
                           key={session.id}
                           className={cn(
-                            'group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-colors',
+                            'group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-colors',
                             currentSessionId === session.id
                               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                               : 'hover:bg-sidebar-accent/50'
                           )}
                           onClick={() => onSelectSession(session.id)}
-                          onMouseEnter={() => setHoveredSession(session.id)}
-                          onMouseLeave={() => setHoveredSession(null)}
                         >
-                          <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="flex-1 truncate text-sm">{session.title}</span>
-                          
-                          {(hoveredSession === session.id || currentSessionId === session.id) && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-6 shrink-0 opacity-0 group-hover:opacity-100"
-                                  onClick={(e) => e.stopPropagation()}
+                          {session.pinned ? (
+                            <Pin className="size-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+                          )}
+
+                          {renamingId === session.id ? (
+                            <input
+                              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm outline-none focus:border-primary"
+                              value={renameValue}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  if (renameValue.trim()) {
+                                    onRenameSession(session.id, renameValue.trim())
+                                  }
+                                  setRenamingId(null)
+                                } else if (e.key === 'Escape') {
+                                  setRenamingId(null)
+                                }
+                              }}
+                              onBlur={() => {
+                                if (renameValue.trim()) {
+                                  onRenameSession(session.id, renameValue.trim())
+                                }
+                                setRenamingId(null)
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
+                          )}
+
+                          <DropdownMenu
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setOpenMenuId(session.id)
+                              } else {
+                                setOpenMenuId(null)
+                              }
+                            }}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onPinSession(session.id)
+                                  }}
                                 >
-                                  <MoreHorizontal className="size-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40">
-                                <DropdownMenuItem>
+                                  <Pin className="mr-2 size-4" />
+                                  {session.pinned ? '取消置顶' : '置顶'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setRenamingId(session.id)
+                                    setRenameValue(session.title)
+                                  }}
+                                >
                                   <Edit3 className="mr-2 size-4" />
                                   重命名
                                 </DropdownMenuItem>
@@ -259,7 +331,6 @@ export function ChatSidebar({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -269,7 +340,7 @@ export function ChatSidebar({
             )}
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Knowledge Base Section */}
       <KnowledgeBaseManager />

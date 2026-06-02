@@ -273,6 +273,26 @@ class RAGService:
         self.create_vector_store(chunks)
         self.init_qa_chain()
 
+    def retrieve(self, question: str, k: int = 3) -> List[Dict]:
+        """只检索相关文档片段，不生成答案。供 chat flow 透明注入上下文使用"""
+        if not self.vector_store:
+            print("[WARN] 向量存储未初始化，无法检索")
+            return []
+
+        try:
+            docs = self.vector_store.similarity_search(question, k=k)
+            results = []
+            for doc in docs:
+                results.append({
+                    "page_content": doc.page_content if hasattr(doc, 'page_content') else str(doc),
+                    "metadata": doc.metadata if hasattr(doc, 'metadata') else {},
+                })
+            print(f"[INFO] RAG 检索完成，返回 {len(results)} 个文档片段")
+            return results
+        except Exception as e:
+            print(f"[WARN] RAG 检索失败: {e}")
+            return []
+
     def query(self, question: str) -> Dict:
         """执行 RAG 查询"""
         if not self.qa_chain:

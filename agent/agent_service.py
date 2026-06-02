@@ -296,13 +296,13 @@ except Exception as e:
 def handle_intent(intent: Intent, user_input: str) -> str:
     if intent == Intent.TEST_CASE:
         return run_simple_llm(TEST_CASE_PROMPT, user_input)
-    
+
     elif intent == Intent.TEST_PLAN:
         return run_simple_llm(TEST_PLAN_PROMPT, user_input)
-    
+
     elif intent == Intent.CODE_ANALYSIS:
         return run_simple_llm(CODE_ANALYSIS_PROMPT, user_input)
-    
+
     elif intent == Intent.RAG_QA:
         if rag_service:
             rag_result = rag_service.query(user_input)
@@ -312,10 +312,10 @@ def handle_intent(intent: Intent, user_input: str) -> str:
                 return f"RAG 查询失败: {rag_result['answer']}"
         else:
             return "RAG 服务未初始化，请先添加文档到 document 目录"
-    
+
     elif intent == Intent.RUN_TESTS:
         return run_simple_llm(RUN_TESTS_PROMPT, user_input)
-    
+
     else:
         return run_simple_llm(CHAT_PROMPT, user_input)
 

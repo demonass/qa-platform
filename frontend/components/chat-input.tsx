@@ -1,10 +1,15 @@
 'use client'
 
-import { useState, useCallback, KeyboardEvent, useRef } from 'react'
+import { useState, useCallback, KeyboardEvent, useRef, forwardRef, useImperativeHandle } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowUp, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+export interface ChatInputHandle {
+  setInput: (text: string) => void
+  focus: () => void
+}
 
 interface ChatInputProps {
   onSend: (text: string) => void
@@ -12,9 +17,15 @@ interface ChatInputProps {
   isLoading: boolean
 }
 
-export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
+  function ChatInput({ onSend, onStop, isLoading }, ref) {
   const [input, setInput] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  useImperativeHandle(ref, () => ({
+    setInput: (text: string) => setInput(text),
+    focus: () => textareaRef.current?.focus(),
+  }))
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
     if (!trimmed || isLoading) return
@@ -37,6 +48,7 @@ export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
       <div className="mx-auto max-w-3xl">
         <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/20">
           <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -76,4 +88,4 @@ export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
       </div>
     </div>
   )
-}
+})

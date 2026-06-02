@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { ChatSidebar, ChatSession } from '@/components/chat-sidebar'
 import { ChatMessages } from '@/components/chat-messages'
-import { ChatInput } from '@/components/chat-input'
+import { ChatInput, ChatInputHandle } from '@/components/chat-input'
 import { EmptyState } from '@/components/empty-state'
 import { EditorPanel, EditorFile } from '@/components/editor-panel'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -48,7 +48,14 @@ export default function ChatPage() {
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   })
 
+  const chatInputRef = useRef<ChatInputHandle>(null)
   const isLoading = status === 'streaming' || status === 'submitted'
+
+  // 建议按钮：填入输入框而不自动发送
+  const handleSuggestionClick = useCallback((text: string) => {
+    chatInputRef.current?.setInput(text)
+    chatInputRef.current?.focus()
+  }, [])
 
   // 从 localStorage 加载会话
   const loadSessions = useCallback(() => {
@@ -229,6 +236,26 @@ export default function ChatPage() {
     }
   }, [currentSessionId, setMessages])
 
+  // 置顶/取消置顶会话
+  const handlePinSession = useCallback((id: string) => {
+    setSessions(prev =>
+      prev.map(s => (s.id === id ? { ...s, pinned: !s.pinned } : s))
+    )
+
+    const stored = localStorage.getItem('chat-sessions')
+    if (stored) {
+      try {
+        const sessionsData: StoredSession[] = JSON.parse(stored)
+        const updated = sessionsData.map(s =>
+          s.id === id ? { ...s, pinned: !(s as any).pinned } : s
+        )
+        localStorage.setItem('chat-sessions', JSON.stringify(updated))
+      } catch (e) {
+        console.error('Failed to pin session:', e)
+      }
+    }
+  }, [])
+
   // 重命名会话
   const handleRenameSession = useCallback((id: string, title: string) => {
     // 更新内存中的会话
@@ -334,6 +361,7 @@ export default function ChatPage() {
       onSelectSession={handleSelectSession}
       onDeleteSession={handleDeleteSession}
       onRenameSession={handleRenameSession}
+      onPinSession={handlePinSession}
       isCollapsed={!isMobile && sidebarCollapsed}
       onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       onClearAllSessions={handleClearAllSessions}
@@ -365,6 +393,7 @@ export default function ChatPage() {
                   onSelectSession={handleSelectSession}
                   onDeleteSession={handleDeleteSession}
                   onRenameSession={handleRenameSession}
+                  onPinSession={handlePinSession}
                   isCollapsed={false}
                   onToggleCollapse={() => setMobileSheetOpen(false)}
                 />
@@ -407,7 +436,7 @@ export default function ChatPage() {
         {/* Chat Area */}
         <main className="flex flex-1 flex-col overflow-hidden">
           {messages.length === 0 ? (
-            <EmptyState onSuggestionClick={handleSend} />
+            <EmptyState onSuggestionClick={handleSuggestionClick} />
           ) : (
             <ChatMessages 
               messages={messages} 
@@ -419,6 +448,7 @@ export default function ChatPage() {
           )}
           
           <ChatInput
+            ref={chatInputRef}
             onSend={handleSend}
             onStop={stop}
             isLoading={isLoading}

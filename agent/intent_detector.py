@@ -83,6 +83,21 @@ INTENT_PATTERNS = {
         "知识库中的内容",
         "基于知识库",
         "从知识库",
+        # Natural document-query patterns (personnel/org info)
+        "职位",
+        "岗位",
+        "部门",
+        "简历",
+        "员工",
+        "同事",
+        "入职",
+        # Document lookup patterns
+        "查一下",
+        "查一查",
+        "帮我查",
+        "帮我找",
+        "资料",
+        "知识库",
     ],
     Intent.RUN_TESTS: [
         "执行测试",
