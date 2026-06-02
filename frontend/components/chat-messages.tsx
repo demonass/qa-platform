@@ -80,8 +80,8 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                     return null
                   })}
                 </MessageContent>
-                {/* 只在AI消息上显示操作按钮 */}
-                {!isUser && (
+                {/* 在AI消息上显示操作按钮，但流式回复时隐藏 */}
+                {!isUser && !isStreaming && (
                   <MessageActions>
                     <MessageAction
                       tooltip="复制用户消息"
