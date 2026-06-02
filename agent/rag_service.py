@@ -71,6 +71,8 @@ class RAGService:
             if os.path.exists(self.document_dir):
                 md_files = list(Path(self.document_dir).rglob("*.md"))
                 txt_files = list(Path(self.document_dir).rglob("*.txt"))
+                pdf_files = list(Path(self.document_dir).rglob("*.pdf"))
+                docx_files = list(Path(self.document_dir).rglob("*.docx"))
                 
                 for file_path in md_files:
                     try:
@@ -91,6 +93,40 @@ class RAGService:
                                 "page_content": content,
                                 "metadata": {"source": str(file_path)}
                             })
+                    except Exception as e:
+                        print(f"[WARN] 加载 {file_path} 失败: {e}")
+                
+                for file_path in pdf_files:
+                    try:
+                        from PyPDF2 import PdfReader
+                        reader = PdfReader(str(file_path))
+                        content = "\n".join([page.extract_text() for page in reader.pages])
+                        if content.strip():
+                            documents.append({
+                                "page_content": content,
+                                "metadata": {"source": str(file_path)}
+                            })
+                        else:
+                            print(f"[WARN] PDF 文件 {file_path} 内容为空")
+                    except ImportError:
+                        print(f"[WARN] PyPDF2 未安装，无法加载 {file_path}")
+                    except Exception as e:
+                        print(f"[WARN] 加载 {file_path} 失败: {e}")
+                
+                for file_path in docx_files:
+                    try:
+                        from docx import Document
+                        doc = Document(str(file_path))
+                        content = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+                        if content.strip():
+                            documents.append({
+                                "page_content": content,
+                                "metadata": {"source": str(file_path)}
+                            })
+                        else:
+                            print(f"[WARN] DOCX 文件 {file_path} 内容为空")
+                    except ImportError:
+                        print(f"[WARN] python-docx 未安装，无法加载 {file_path}")
                     except Exception as e:
                         print(f"[WARN] 加载 {file_path} 失败: {e}")
                 
