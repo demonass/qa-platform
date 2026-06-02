@@ -130,17 +130,21 @@ export default function ChatPage() {
     })
   }, [])
 
-  // 重新对话
-  const handleRetryMessage = useCallback((message: UIMessage) => {
-    const text = message.parts
+  // 重新对话（先删除AI回复，再重新发送用户消息）
+  const handleRetryMessage = useCallback((userMessage: UIMessage, aiMessageId: string) => {
+    // 先删除AI回复消息
+    setMessages(prev => prev.filter(m => m.id !== aiMessageId))
+    
+    // 提取用户消息文本并重新发送
+    const text = userMessage.parts
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map(p => p.text)
       .join('')
     
-    if (message.role === 'user' && text) {
+    if (userMessage.role === 'user' && text) {
       sendMessage({ text })
     }
-  }, [sendMessage])
+  }, [sendMessage, setMessages])
 
   // 删除消息（同时删除用户消息和AI回复）
   const handleDeleteMessage = useCallback((userMessageId: string, aiMessageId: string) => {

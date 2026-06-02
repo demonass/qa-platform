@@ -21,7 +21,7 @@ interface ChatMessagesProps {
   messages: UIMessage[]
   isLoading: boolean
   onCopy?: (text: string) => void
-  onRetry?: (message: UIMessage) => void
+  onRetry?: (userMessage: UIMessage, aiMessageId: string) => void
   onDelete?: (userMessageId: string, aiMessageId: string) => void
 }
 
@@ -90,7 +90,7 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                     </MessageAction>
                     <MessageAction
                       tooltip="重新对话"
-                      onClick={() => onRetry?.(prevMessage)}
+                      onClick={() => onRetry?.(prevMessage, message.id)}
                     >
                       <RotateCcw className="size-4" />
                     </MessageAction>
