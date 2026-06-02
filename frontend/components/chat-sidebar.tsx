@@ -267,27 +267,27 @@ export function ChatSidebar({
               </div>
             )}
           </div>
-
-          {/* Knowledge Base Section */}
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <BookOpen className="size-3.5" />
-              知识库
-            </div>
-            <div className="rounded-lg border border-dashed border-border/50 p-2 text-center">
-              <BookOpen className="mx-auto size-6 text-muted-foreground/50" />
-              <p className="mt-1 text-sm font-medium text-foreground">添加知识库</p>
-              <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-tight">
-                上传文档让 AI 更了解您的业务
-              </p>
-              <Button variant="outline" size="sm" className="mt-2 w-full">
-                <Plus className="mr-1 size-3" />
-                上传文档
-              </Button>
-            </div>
-          </div>
         </div>
       </ScrollArea>
+
+      {/* Knowledge Base Section - moved outside scroll area */}
+      <div className="border-t border-border/50 p-3">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <BookOpen className="size-3.5" />
+          知识库
+        </div>
+        <div className="mt-2 rounded-lg border border-dashed border-border/50 p-3 text-center">
+          <BookOpen className="mx-auto size-6 text-muted-foreground/50" />
+          <p className="mt-1.5 text-sm font-medium text-foreground">添加知识库</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            上传文档让 AI 更了解您的业务
+          </p>
+          <Button variant="outline" size="sm" className="mt-2 w-full">
+            <Plus className="mr-1 size-3" />
+            上传文档
+          </Button>
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="border-t border-border/50 p-3">
