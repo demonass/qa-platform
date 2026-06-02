@@ -159,9 +159,9 @@ export function ChatSidebar({
   }
 
   return (
-    <aside className="flex w-72 flex-col border-r border-border/50 bg-sidebar">
+    <aside className="flex w-80 flex-col border-r border-border/50 bg-sidebar">
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-border/50 px-3">
+      <div className="flex h-14 items-center justify-between border-b border-border/50 px-4">
         <div className="flex items-center gap-2">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary">
             <QALogo size="sm" />
