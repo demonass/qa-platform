@@ -294,6 +294,8 @@ async def document_upload(
     target_chunks: int = 5
 ):
     try:
+        print(f"[INFO] Received file upload request: {file.filename}")
+        
         allowed_extensions = [".txt", ".md", ".docx", ".pdf"]
 
         filename = file.filename.lower()
@@ -308,10 +310,12 @@ async def document_upload(
             raise HTTPException(status_code=400, detail="不支持的文件格式，支持: txt, md, docx, pdf")
 
         content = await file.read()
+        print(f"[INFO] File size: {len(content)} bytes")
         text_content = ""
 
         if file_extension == ".txt" or file_extension == ".md":
             text_content = content.decode("utf-8", errors="ignore")
+            print(f"[INFO] Extracted text length: {len(text_content)} characters")
 
         elif file_extension == ".docx":
             try:
@@ -319,6 +323,7 @@ async def document_upload(
                 import io
                 doc = Document(io.BytesIO(content))
                 text_content = "\n".join([para.text for para in doc.paragraphs])
+                print(f"[INFO] Extracted text length from DOCX: {len(text_content)} characters")
             except ImportError:
                 raise HTTPException(status_code=500, detail="需要安装 python-docx 库")
             except Exception as e:
@@ -330,6 +335,7 @@ async def document_upload(
                 import io
                 reader = PdfReader(io.BytesIO(content))
                 text_content = "\n".join([page.extract_text() for page in reader.pages])
+                print(f"[INFO] Extracted text length from PDF: {len(text_content)} characters")
             except ImportError:
                 raise HTTPException(status_code=500, detail="需要安装 PyPDF2 库")
             except Exception as e:
@@ -338,11 +344,14 @@ async def document_upload(
         if not text_content.strip():
             raise HTTPException(status_code=400, detail="无法从文件中提取文本内容")
 
+        print(f"[INFO] Processing document with strategy: {strategy}, target_chunks: {target_chunks}")
         result = process_document(
             text=text_content,
             strategy=strategy,
             target_chunks=target_chunks
         )
+
+        print(f"[INFO] Document processed successfully, {len(result)} modules generated")
 
         return {
             "status": "success",
@@ -355,6 +364,7 @@ async def document_upload(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[ERROR] File upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"文件上传处理失败: {str(e)}")
 
 

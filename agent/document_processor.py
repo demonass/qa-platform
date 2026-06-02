@@ -43,10 +43,20 @@ def init_embedding_model(model_path: str = None):
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
             model_path = os.path.join(base_dir, "embedding_models", "bge-base-zh-v1.5")
         
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        model = AutoModel.from_pretrained(model_path)
-        model.eval()
-        print("[INFO] Embedding model initialized for document processing")
+        # 检查模型目录是否存在
+        if not os.path.exists(model_path):
+            print(f"[WARN] Embedding model not found at {model_path}")
+            print("[WARN] Will use simple character splitting instead of semantic chunking")
+            return
+        
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModel.from_pretrained(model_path)
+            model.eval()
+            print("[INFO] Embedding model initialized for document processing")
+        except Exception as e:
+            print(f"[WARN] Failed to load embedding model: {str(e)}")
+            print("[WARN] Will use simple character splitting instead of semantic chunking")
 
 
 def embed_text(text: str) -> List[float]:
@@ -101,7 +111,24 @@ class DocumentProcessor:
         2. 计算相邻片段的语义相似度
         3. 在相似度最低的位置进行切分
         4. 重复直到达到目标切分数量
+        
+        如果 embedding 模型不可用，降级到简单字符切分
         """
+        global model
+        if model is None:
+            print("[INFO] Embedding model not available, falling back to recursive character splitting")
+            chunks = self.split_by_recursive_char(text)
+            # 调整到目标切分数量
+            if len(chunks) > target_chunks:
+                step = len(chunks) // target_chunks
+                result = []
+                for i in range(target_chunks):
+                    start = i * step
+                    end = (i + 1) * step if i < target_chunks - 1 else len(chunks)
+                    result.append("\n".join(chunks[start:end]))
+                return result
+            return chunks
+        
         # 第一步：初步分割成小片段
         sentences = self._split_into_sentences(text)
         
