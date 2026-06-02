@@ -148,7 +148,18 @@ export default function ChatPage() {
 
   // 删除消息（同时删除用户消息和AI回复）
   const handleDeleteMessage = useCallback((userMessageId: string, aiMessageId: string) => {
-    setMessages(prev => prev.filter(m => m.id !== userMessageId && m.id !== aiMessageId))
+    console.log('Deleting messages:', { userMessageId, aiMessageId })
+    if (!userMessageId || !aiMessageId) {
+      toast.error('消息ID无效')
+      return
+    }
+    setMessages(prev => {
+      const beforeCount = prev.length
+      const after = prev.filter(m => m.id !== userMessageId && m.id !== aiMessageId)
+      const afterCount = after.length
+      console.log(`Messages: ${beforeCount} -> ${afterCount}`)
+      return after
+    })
     toast.success('对话已删除')
   }, [setMessages])
 
