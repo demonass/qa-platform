@@ -42,7 +42,16 @@ export async function POST(req: Request) {
     const sessionId = body.id || body.chatId || body.session_id || 'default'
 
     const stream = createUIMessageStream({
-      async execute({ writer }) {
+      async execute({ writer, signal }) {
+        // 创建 AbortController，用于取消请求
+        const abortController = new AbortController()
+        
+        // 监听客户端取消信号
+        signal?.addEventListener('abort', () => {
+          console.log('Client aborted the request')
+          abortController.abort()
+        })
+
         const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
           method: 'POST',
           headers: reqHeaders,
@@ -50,6 +59,7 @@ export async function POST(req: Request) {
             message: userMessage,
             session_id: sessionId,
           }),
+          signal: abortController.signal, // 将取消信号传递给fetch
         })
 
         if (!response.ok) {
@@ -74,41 +84,50 @@ export async function POST(req: Request) {
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
 
-        while (true) {
-          const { done: readerDone, value } = await reader.read()
-          if (readerDone) break
+        try {
+          while (true) {
+            const { done: readerDone, value } = await reader.read()
+            if (readerDone) break
 
-          buffer += decoder.decode(value, { stream: true })
+            buffer += decoder.decode(value, { stream: true })
 
-          while (buffer.includes('\n')) {
-            const lineEnd = buffer.indexOf('\n')
-            const line = buffer.slice(0, lineEnd).trim()
-            buffer = buffer.slice(lineEnd + 1)
+            while (buffer.includes('\n')) {
+              const lineEnd = buffer.indexOf('\n')
+              const line = buffer.slice(0, lineEnd).trim()
+              buffer = buffer.slice(lineEnd + 1)
 
-            if (!line) continue
+              if (!line) continue
 
-            if (line.startsWith('data: ')) {
-              try {
-                const dataStr = line.slice(6)
-                const data = JSON.parse(dataStr)
+              if (line.startsWith('data: ')) {
+                try {
+                  const dataStr = line.slice(6)
+                  const data = JSON.parse(dataStr)
 
-                if (data.content && !data.done) {
-                  if (!started) {
-                    writer.write({ type: 'text-start', id: partId })
-                    started = true
+                  if (data.content && !data.done) {
+                    if (!started) {
+                      writer.write({ type: 'text-start', id: partId })
+                      started = true
+                    }
+                    writer.write({ type: 'text-delta', id: partId, delta: data.content })
+                  } else if (data.done) {
+                    if (started) {
+                      writer.write({ type: 'text-end', id: partId })
+                    }
+                    return
                   }
-                  writer.write({ type: 'text-delta', id: partId, delta: data.content })
-                } else if (data.done) {
-                  if (started) {
-                    writer.write({ type: 'text-end', id: partId })
-                  }
-                  return
+                } catch (e) {
+                  console.error('Failed to parse SSE data:', e)
                 }
-              } catch (e) {
-                console.error('Failed to parse SSE data:', e)
               }
             }
           }
+        } catch (error) {
+          // 如果是取消错误，不抛出异常
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.log('Stream was aborted by client')
+            return
+          }
+          throw error
         }
 
         // 如果流结束但没有收到 done 信号，也发送 text-end
