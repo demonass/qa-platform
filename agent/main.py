@@ -322,11 +322,14 @@ async def document_upload(
                 from docx import Document
                 import io
                 doc = Document(io.BytesIO(content))
-                text_content = "\n".join([para.text for para in doc.paragraphs])
+                paragraphs = [para.text for para in doc.paragraphs]
+                text_content = "\n".join([p for p in paragraphs if p.strip()])
+                print(f"[INFO] Extracted {len(paragraphs)} paragraphs from DOCX")
                 print(f"[INFO] Extracted text length from DOCX: {len(text_content)} characters")
             except ImportError:
                 raise HTTPException(status_code=500, detail="需要安装 python-docx 库")
             except Exception as e:
+                print(f"[ERROR] DOCX parsing error: {str(e)}")
                 raise HTTPException(status_code=500, detail=f"解析 Word 文档失败: {str(e)}")
 
         elif file_extension == ".pdf":
