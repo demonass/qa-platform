@@ -39,7 +39,13 @@ echo "📦 1. 启动 Python Agent 服务 (端口 8000)..."
 cd "$SCRIPT_DIR/agent"
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
 source ~/ai_env/bin/activate
-pip install -q -r requirements.txt 2>&1 | tail -3
+echo "   检查 Python 依赖..."
+if ! pip list 2>/dev/null | grep -q "fastapi"; then
+    echo "   安装 Python 依赖（首次运行可能需要几分钟）..."
+    pip install -r requirements.txt 2>&1 | grep -E "(Successfully|ERROR|Requirement already satisfied)" | tail -5
+else
+    echo "   Python 依赖已安装"
+fi
 echo "   Python Agent 服务启动中..."
 nohup python main.py > /tmp/agent.log 2>&1 &
 AGENT_PID=$!
