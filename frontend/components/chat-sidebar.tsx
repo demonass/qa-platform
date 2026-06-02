@@ -18,18 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QALogo } from '@/components/qa-logo'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { KnowledgeBaseManager } from '@/components/knowledge-base-manager'
 
 export interface ChatSession {
   id: string
@@ -270,24 +259,8 @@ export function ChatSidebar({
         </div>
       </ScrollArea>
 
-      {/* Knowledge Base Section - moved outside scroll area */}
-      <div className="border-t border-border/50 p-3">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <BookOpen className="size-3.5" />
-          知识库
-        </div>
-        <div className="mt-2 rounded-lg border border-dashed border-border/50 p-3 text-center">
-          <BookOpen className="mx-auto size-6 text-muted-foreground/50" />
-          <p className="mt-1.5 text-sm font-medium text-foreground">添加知识库</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            上传文档让 AI 更了解您的业务
-          </p>
-          <Button variant="outline" size="sm" className="mt-2 w-full">
-            <Plus className="mr-1 size-3" />
-            上传文档
-          </Button>
-        </div>
-      </div>
+      {/* Knowledge Base Section */}
+      <KnowledgeBaseManager />
 
       {/* Footer */}
       <div className="border-t border-border/50 p-3">
