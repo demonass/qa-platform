@@ -10,17 +10,28 @@ import {
   Message,
   MessageContent,
   MessageResponse,
+  MessageActions,
+  MessageAction,
 } from '@/components/ai-elements/message'
-import { User } from 'lucide-react'
+import { User, Copy, RotateCcw, X } from 'lucide-react'
 import { QALogo } from '@/components/qa-logo'
 import { cn } from '@/lib/utils'
 
 interface ChatMessagesProps {
   messages: UIMessage[]
   isLoading: boolean
+  onCopy?: (text: string) => void
+  onRetry?: (message: UIMessage) => void
+  onDelete?: (messageId: string) => void
 }
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+const getMessageText = (message: UIMessage): string =>
+  message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+
+export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }: ChatMessagesProps) {
   return (
     <Conversation className="flex-1">
       <ConversationContent className="mx-auto max-w-3xl gap-6 px-4 py-6">
@@ -67,6 +78,26 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                     return null
                   })}
                 </MessageContent>
+                <MessageActions>
+                  <MessageAction
+                    tooltip="复制"
+                    onClick={() => onCopy?.(getMessageText(message))}
+                  >
+                    <Copy className="size-4" />
+                  </MessageAction>
+                  <MessageAction
+                    tooltip="重新对话"
+                    onClick={() => onRetry?.(message)}
+                  >
+                    <RotateCcw className="size-4" />
+                  </MessageAction>
+                  <MessageAction
+                    tooltip="删除"
+                    onClick={() => onDelete?.(message.id)}
+                  >
+                    <X className="size-4" />
+                  </MessageAction>
+                </MessageActions>
               </Message>
             </div>
           )

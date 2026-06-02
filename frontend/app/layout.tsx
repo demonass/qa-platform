@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -41,6 +42,7 @@ export default function RootLayout({
         <TooltipProvider>
           {children}
         </TooltipProvider>
+        <Toaster />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

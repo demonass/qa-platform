@@ -17,6 +17,8 @@ import {
   SheetContent,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import type { UIMessage } from 'ai'
+import { toast } from 'sonner'
 
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -119,6 +121,33 @@ export default function ChatPage() {
     )
   }, [])
 
+  // 复制消息
+  const handleCopyMessage = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('已复制到剪贴板')
+    }).catch(() => {
+      toast.error('复制失败')
+    })
+  }, [])
+
+  // 重新对话
+  const handleRetryMessage = useCallback((message: UIMessage) => {
+    const text = message.parts
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text)
+      .join('')
+    
+    if (message.role === 'user' && text) {
+      sendMessage({ text })
+    }
+  }, [sendMessage])
+
+  // 删除消息
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId))
+    toast.success('消息已删除')
+  }, [setMessages])
+
   // 侧边栏内容
   const sidebarContent = (
     <ChatSidebar
@@ -201,7 +230,13 @@ export default function ChatPage() {
           {messages.length === 0 ? (
             <EmptyState onSuggestionClick={handleSend} />
           ) : (
-            <ChatMessages messages={messages} isLoading={isLoading} />
+            <ChatMessages 
+              messages={messages} 
+              isLoading={isLoading}
+              onCopy={handleCopyMessage}
+              onRetry={handleRetryMessage}
+              onDelete={handleDeleteMessage}
+            />
           )}
           
           <ChatInput
