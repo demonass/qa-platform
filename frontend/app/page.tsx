@@ -146,6 +146,9 @@ export default function ChatPage() {
 
   // 开始新对话
   const handleNewChat = useCallback(() => {
+    // 停止当前正在进行的流式请求
+    stop()
+    
     // 如果当前有消息，保存当前会话
     if (messages.length > 0 && currentSessionId) {
       saveSession(currentSessionId, messages)
@@ -155,7 +158,7 @@ export default function ChatPage() {
     setMessages([])
     setCurrentSessionId(null)
     setMobileSheetOpen(false)
-  }, [messages, currentSessionId, setMessages, saveSession])
+  }, [messages, currentSessionId, setMessages, saveSession, stop])
 
   // 发送消息
   const handleSend = useCallback((text: string) => {
