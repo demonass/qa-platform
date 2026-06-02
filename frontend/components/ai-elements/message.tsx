@@ -55,7 +55,7 @@ export const MessageContent = ({
   <div
     className={cn(
       "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm",
-      "rounded-lg bg-secondary px-4 py-3 text-foreground",
+      "rounded-lg bg-cyan-50 px-4 py-3 text-foreground",
       className
     )}
     {...props}

@@ -11,7 +11,8 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message'
-import { Sparkles, User } from 'lucide-react'
+import { User } from 'lucide-react'
+import { QALogo } from '@/components/qa-logo'
 import { cn } from '@/lib/utils'
 
 interface ChatMessagesProps {
@@ -45,8 +46,8 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
               
               {/* AI头像在左边 */}
               {!isUser && (
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Sparkles className="size-4" />
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <QALogo size="sm" />
                 </div>
               )}
               
