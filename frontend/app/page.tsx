@@ -142,10 +142,10 @@ export default function ChatPage() {
     }
   }, [sendMessage])
 
-  // 删除消息
-  const handleDeleteMessage = useCallback((messageId: string) => {
-    setMessages(prev => prev.filter(m => m.id !== messageId))
-    toast.success('消息已删除')
+  // 删除消息（同时删除用户消息和AI回复）
+  const handleDeleteMessage = useCallback((userMessageId: string, aiMessageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== userMessageId && m.id !== aiMessageId))
+    toast.success('对话已删除')
   }, [setMessages])
 
   // 侧边栏内容

@@ -22,7 +22,7 @@ interface ChatMessagesProps {
   isLoading: boolean
   onCopy?: (text: string) => void
   onRetry?: (message: UIMessage) => void
-  onDelete?: (messageId: string) => void
+  onDelete?: (userMessageId: string, aiMessageId: string) => void
 }
 
 const getMessageText = (message: UIMessage): string =>
@@ -95,8 +95,8 @@ export function ChatMessages({ messages, isLoading, onCopy, onRetry, onDelete }:
                       <RotateCcw className="size-4" />
                     </MessageAction>
                     <MessageAction
-                      tooltip="删除用户消息"
-                      onClick={() => onDelete?.(prevMessage.id)}
+                      tooltip="删除对话"
+                      onClick={() => onDelete?.(prevMessage.id, message.id)}
                     >
                       <X className="size-4" />
                     </MessageAction>
