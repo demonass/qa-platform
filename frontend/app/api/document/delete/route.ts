@@ -11,7 +11,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: '文件名不能为空' }, { status: 400 });
     }
 
-    const documentDir = path.join(process.cwd(), '../../document');
+    const documentDir = path.join(process.cwd(), '../document');
     const filePath = path.join(documentDir, filename);
 
     // 安全检查：确保文件在 document 目录内

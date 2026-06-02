@@ -4,7 +4,7 @@ import path from 'path';
 
 export async function GET() {
   try {
-    const documentDir = path.join(process.cwd(), '../../document');
+    const documentDir = path.join(process.cwd(), '../document');
     
     if (!fs.existsSync(documentDir)) {
       return NextResponse.json({ files: [], count: 0 });
