@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
   onSend: (text: string) => void
+  onStop?: () => void
   isLoading: boolean
 }
 
-export function ChatInput({ onSend, isLoading }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isLoading }: ChatInputProps) {
   const [input, setInput] = useState('')
 
   const handleSubmit = useCallback(() => {
@@ -48,12 +49,14 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
           />
           
           <Button
-            onClick={handleSubmit}
-            disabled={!input.trim() || isLoading}
+            onClick={isLoading ? onStop : handleSubmit}
+            disabled={!input.trim() && !isLoading}
             size="icon"
             className={cn(
               'size-10 shrink-0 rounded-xl transition-all',
-              input.trim() && !isLoading
+              isLoading
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : input.trim()
                 ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                 : 'bg-muted text-muted-foreground'
             )}

@@ -40,7 +40,7 @@ export default function ChatPage() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
   const isMobile = useMediaQuery('(max-width: 768px)')
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, stop } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   })
 
@@ -256,6 +256,7 @@ export default function ChatPage() {
           
           <ChatInput
             onSend={handleSend}
+            onStop={stop}
             isLoading={isLoading}
           />
         </main>
