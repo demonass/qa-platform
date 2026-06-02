@@ -30,6 +30,17 @@ const extractTitle = (text: string) => {
   return cleaned.length > maxLength ? cleaned.slice(0, maxLength) + '...' : cleaned
 }
 
+export interface ChatSession {
+  id: string
+  title: string
+  lastMessage: string
+  updatedAt: Date
+}
+
+interface StoredSession extends ChatSession {
+  messages: any[]
+}
+
 export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -46,29 +57,112 @@ export default function ChatPage() {
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
+  // 从 localStorage 加载会话
+  const loadSessions = useCallback(() => {
+    const stored = localStorage.getItem('chat-sessions')
+    if (stored) {
+      try {
+        const data = JSON.parse(stored)
+        return data.map((s: any) => ({
+          ...s,
+          updatedAt: new Date(s.updatedAt),
+        }))
+      } catch (e) {
+        console.error('Failed to load sessions:', e)
+        return []
+      }
+    }
+    return []
+  }, [])
+
+  // 保存会话到 localStorage
+  const saveSession = useCallback((sessionId: string, sessionMessages: any[]) => {
+    const stored = localStorage.getItem('chat-sessions')
+    let sessionsData: StoredSession[] = stored ? JSON.parse(stored) : []
+    
+    const existingIndex = sessionsData.findIndex(s => s.id === sessionId)
+    const firstUserMessage = sessionMessages.find((m: any) => m.role === 'user')
+    const title = firstUserMessage 
+      ? extractTitle(firstUserMessage.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('') || '新对话')
+      : '新对话'
+    const lastMessage = sessionMessages.length > 0 
+      ? (() => {
+          const lastMsg = sessionMessages[sessionMessages.length - 1]
+          if (lastMsg.parts) {
+            return lastMsg.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+          }
+          return '新消息'
+        })()
+      : '新对话'
+
+    if (existingIndex >= 0) {
+      sessionsData[existingIndex] = {
+        ...sessionsData[existingIndex],
+        title,
+        lastMessage,
+        updatedAt: new Date(),
+        messages: sessionMessages,
+      }
+    } else {
+      sessionsData.unshift({
+        id: sessionId,
+        title,
+        lastMessage,
+        updatedAt: new Date(),
+        messages: sessionMessages,
+      })
+    }
+
+    localStorage.setItem('chat-sessions', JSON.stringify(sessionsData))
+  }, [])
+
+  // 从 localStorage 加载单个会话的消息
+  const loadSessionMessages = useCallback((sessionId: string) => {
+    const stored = localStorage.getItem('chat-sessions')
+    if (stored) {
+      try {
+        const sessionsData: StoredSession[] = JSON.parse(stored)
+        const session = sessionsData.find(s => s.id === sessionId)
+        if (session && session.messages) {
+          return session.messages
+        }
+      } catch (e) {
+        console.error('Failed to load session messages:', e)
+      }
+    }
+    return []
+  }, [])
+
+  // 初始化加载会话列表
+  useEffect(() => {
+    const loadedSessions = loadSessions()
+    setSessions(loadedSessions.map(s => ({
+      id: s.id,
+      title: s.title,
+      lastMessage: s.lastMessage,
+      updatedAt: s.updatedAt,
+    })))
+  }, [loadSessions])
+
+  // 自动保存当前会话的消息
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      saveSession(currentSessionId, messages)
+    }
+  }, [messages, currentSessionId, saveSession])
+
   // 开始新对话
   const handleNewChat = useCallback(() => {
     // 如果当前有消息，保存当前会话
     if (messages.length > 0 && currentSessionId) {
-      const firstUserMessage = messages.find(m => m.role === 'user')
-      const title = firstUserMessage 
-        ? extractTitle(firstUserMessage.parts?.filter(p => p.type === 'text').map(p => (p as { type: 'text'; text: string }).text).join('') || '新对话')
-        : '新对话'
-      
-      setSessions(prev => 
-        prev.map(s => 
-          s.id === currentSessionId 
-            ? { ...s, title, lastMessage: title, updatedAt: new Date() }
-            : s
-        )
-      )
+      saveSession(currentSessionId, messages)
     }
     
     // 重置消息
     setMessages([])
     setCurrentSessionId(null)
     setMobileSheetOpen(false)
-  }, [messages, currentSessionId, setMessages])
+  }, [messages, currentSessionId, setMessages, saveSession])
 
   // 发送消息
   const handleSend = useCallback((text: string) => {
@@ -99,15 +193,30 @@ export default function ChatPage() {
 
   // 选择会话
   const handleSelectSession = useCallback((id: string) => {
-    // 简化版：暂时只切换 ID，实际需要持久化
     setCurrentSessionId(id)
-    setMessages([])
+    // 从 localStorage 加载历史消息
+    const storedMessages = loadSessionMessages(id)
+    setMessages(storedMessages)
     setMobileSheetOpen(false)
-  }, [setMessages])
+  }, [setMessages, loadSessionMessages])
 
   // 删除会话
   const handleDeleteSession = useCallback((id: string) => {
+    // 从内存中删除
     setSessions(prev => prev.filter(s => s.id !== id))
+    
+    // 从 localStorage 中删除
+    const stored = localStorage.getItem('chat-sessions')
+    if (stored) {
+      try {
+        const sessionsData: StoredSession[] = JSON.parse(stored)
+        const filtered = sessionsData.filter(s => s.id !== id)
+        localStorage.setItem('chat-sessions', JSON.stringify(filtered))
+      } catch (e) {
+        console.error('Failed to delete session:', e)
+      }
+    }
+    
     if (currentSessionId === id) {
       setCurrentSessionId(null)
       setMessages([])
@@ -116,9 +225,24 @@ export default function ChatPage() {
 
   // 重命名会话
   const handleRenameSession = useCallback((id: string, title: string) => {
+    // 更新内存中的会话
     setSessions(prev =>
       prev.map(s => (s.id === id ? { ...s, title } : s))
     )
+    
+    // 更新 localStorage 中的会话
+    const stored = localStorage.getItem('chat-sessions')
+    if (stored) {
+      try {
+        const sessionsData: StoredSession[] = JSON.parse(stored)
+        const updated = sessionsData.map(s => 
+          s.id === id ? { ...s, title } : s
+        )
+        localStorage.setItem('chat-sessions', JSON.stringify(updated))
+      } catch (e) {
+        console.error('Failed to rename session:', e)
+      }
+    }
   }, [])
 
   // 复制消息
