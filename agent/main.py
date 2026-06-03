@@ -21,6 +21,13 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化 RAG 服务"""
+    print("[INFO] Initializing RAG service on startup...")
+    rag_service.initialize()
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
