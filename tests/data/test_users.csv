@@ -1,0 +1,6 @@
+# Test Users
+# Format: username|password|role|email
+
+test_user_1|test_password123|user|test1@example.com
+test_user_2|test_password456|user|test2@example.com
+admin_user|admin_password|admin|admin@example.com

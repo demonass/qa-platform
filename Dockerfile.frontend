@@ -1,14 +1,44 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 复制依赖文件
+COPY frontend/package.json .
+COPY frontend/pnpm-lock.yaml .
+
+# 安装 pnpm 和依赖
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+# 复制源代码
+COPY frontend/ .
+
+# 构建生产版本
+RUN pnpm run build
+
+# 运行阶段
 FROM node:20-alpine
 
 WORKDIR /app
 
+# 安装 pnpm 和生产依赖
+RUN npm install -g pnpm
+
 COPY frontend/package.json .
 COPY frontend/pnpm-lock.yaml .
 
-RUN npm install -g pnpm && pnpm install
+RUN pnpm install --prod --frozen-lockfile
 
-COPY frontend/ .
+# 从构建阶段复制构建产物
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.mjs .
 
+# 暴露端口
 EXPOSE 3000
 
-CMD ["pnpm", "run", "dev"]
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# 启动命令（生产模式）
+CMD ["pnpm", "run", "start"]

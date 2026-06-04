@@ -1,58 +1,117 @@
 version: '3.8'
 
 services:
+  # ========================================
+  # Python Agent 服务
+  # ========================================
   agent:
     build:
       context: .
       dockerfile: Dockerfile.agent
+    container_name: qa-platform-agent
     ports:
-      - "8000:8000"
+      - "${AGENT_PORT:-8000}:8000"
     environment:
-      - LLM_PROVIDER=${LLM_PROVIDER}
+      # LLM 配置
+      - LLM_PROVIDER=${LLM_PROVIDER:-qwen}
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - QWEN_API_BASE=${QWEN_API_BASE}
+      - QWEN_MODEL=${QWEN_MODEL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_BASE=${DEEPSEEK_API_BASE}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_API_BASE=${OPENAI_API_BASE}
-      - MODEL_NAME=${MODEL_NAME}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - LOCAL_API_KEY=${LOCAL_API_KEY:-not-needed}
+      - LOCAL_API_BASE=${LOCAL_API_BASE}
+      - LOCAL_MODEL=${LOCAL_MODEL}
+      # 时区
+      - TZ=${TZ:-Asia/Shanghai}
+      # 初始管理员
+      - SEED_ADMIN=${SEED_ADMIN}
     volumes:
-      - ./agent:/app
-      - ./data:/app/data
+      # 持久化数据目录
+      - qa-data:/app/data
+      # 文档目录（用于 RAG）
+      - ./document:/app/document
+      # 嵌入模型目录
+      - ./embedding_models:/app/embedding_models
     networks:
       - qa-platform-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # ========================================
+  # Go 后端服务
+  # ========================================
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    container_name: qa-platform-backend
     ports:
-      - "8081:8081"
+      - "${BACKEND_PORT:-8081}:8081"
     environment:
       - PORT=8081
       - AGENT_SERVICE_URL=http://agent:8000
       - AUTH_TOKEN=${AUTH_TOKEN}
+      - JWT_SECRET=${JWT_SECRET:-qa-platform-default-jwt-secret}
+      - TZ=${TZ:-Asia/Shanghai}
     depends_on:
-      - agent
+      agent:
+        condition: service_healthy
     networks:
       - qa-platform-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
+  # ========================================
+  # Next.js 前端服务
+  # ========================================
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    container_name: qa-platform-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - VITE_API_URL=http://localhost:8081
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8081}
+      - TZ=${TZ:-Asia/Shanghai}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - qa-platform-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
+# ========================================
+# 网络配置
+# ========================================
 networks:
   qa-platform-network:
     driver: bridge
 
+# ========================================
+# 数据卷
+# ========================================
 volumes:
-  data:
+  qa-data:
     driver: local
