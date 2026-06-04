@@ -16,6 +16,14 @@ from config import get_llm_config
 from intent_detector import Intent, detect_intent, INTENT_RESPONSES
 from tools import get_all_tools
 
+# Redis 缓存服务
+try:
+    from redis_cache import cache_service
+    print("[INFO] Redis 缓存服务导入成功")
+except Exception as e:
+    print(f"[WARN] Redis 缓存服务导入失败: {e}")
+    cache_service = None
+
 for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY",
             "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"]:
     os.environ.pop(key, None)
@@ -425,6 +433,16 @@ def handle_intent(intent: Intent, user_input: str) -> str:
 def run_agent_with_history(session_id: str, user_input: str) -> str:
     intent = detect_intent(user_input)
     
+    # 尝试从缓存获取答案
+    cached_result = None
+    if cache_service and cache_service.is_enabled():
+        cached_result = cache_service.get(user_input, session_id)
+    
+    if cached_result:
+        print(f"[DEBUG] 命中缓存，直接返回")
+        conversation_history.add_message(session_id, "assistant", cached_result["answer"])
+        return cached_result["answer"]
+    
     history_text = conversation_history.format_history(session_id)
     
     if history_text and history_text != "（无历史对话）":
@@ -435,9 +453,16 @@ def run_agent_with_history(session_id: str, user_input: str) -> str:
     prefix = INTENT_RESPONSES.get(intent)
     if prefix:
         result = handle_intent(intent, user_input_with_history)
-        return f"{prefix}\n\n{result}"
+        final_result = f"{prefix}\n\n{result}"
+    else:
+        result = handle_intent(intent, user_input_with_history)
+        final_result = result
     
-    return handle_intent(intent, user_input_with_history)
+    # 将答案写入缓存
+    if cache_service and cache_service.is_enabled():
+        cache_service.set(user_input, final_result, session_id, intent.name)
+    
+    return final_result
 
 
 # ==================== 流式输出 ====================
@@ -449,10 +474,20 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
     - 意图明确的请求（TEST_CASE/TEST_PLAN/CHAT 等）：直接从 LLM 逐 token 流式输出
     - RAG 问答：先检索知识库，再流式输出结果
     - 代码分析（需工具调用）：先通过 AgentExecutor 执行工具，再分块输出结果
+    - 支持 Redis 缓存：优先检查缓存，命中则直接返回
     """
     intent = detect_intent(user_input)
     print(f"[DEBUG] 检测到的意图: {intent}")
     print(f"[DEBUG] 用户输入: {user_input}")
+    
+    # 尝试从缓存获取答案（流式模式下也支持缓存）
+    if cache_service and cache_service.is_enabled():
+        cached_result = cache_service.get(user_input, session_id)
+        if cached_result:
+            print(f"[DEBUG] 流式输出命中缓存，直接返回")
+            conversation_history.add_message(session_id, "assistant", cached_result["answer"], user_id=user_id)
+            yield cached_result["answer"]
+            return
     
     llm = get_llm()
 
@@ -477,6 +512,9 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
             print(f"[DEBUG] RAG 查询结果: {rag_result}")
             if rag_result["success"]:
                 answer = rag_result["answer"]
+                # 将答案写入缓存
+                if cache_service and cache_service.is_enabled():
+                    cache_service.set(user_input, answer, session_id, intent.name)
                 conversation_history.add_message(session_id, "assistant", answer, user_id=user_id)
                 yield answer
                 return
@@ -490,6 +528,10 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         if prefix:
             yield prefix + "\n\n"
         result = run_agent_with_tools(session_id, user_input_with_history)
+        # 将答案写入缓存
+        if cache_service and cache_service.is_enabled():
+            full_result = (prefix + "\n\n" if prefix else "") + result
+            cache_service.set(user_input, full_result, session_id, intent.name)
         conversation_history.add_message(session_id, "assistant", result, user_id=user_id)
         # AgentExecutor 不支持流式，分块输出（chunk_size=3 接近 token 级别）
         for i in range(0, len(result), 3):
@@ -529,6 +571,14 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         error_msg = f"\n\n[流式生成中断: {e}]"
         yield error_msg
         full_response += error_msg
+
+    # 添加前缀到完整响应
+    if prefix:
+        full_response = prefix + "\n\n" + full_response
+
+    # 将答案写入缓存
+    if cache_service and cache_service.is_enabled():
+        cache_service.set(user_input, full_response, session_id, intent.name)
 
     conversation_history.add_message(session_id, "assistant", full_response, user_id=user_id)
 

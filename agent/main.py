@@ -8,7 +8,13 @@ import os
 from typing import Optional
 from agent_service import conversation_history, run_agent_with_history, run_agent_with_tools, rag_service, stream_chat_response
 from document_processor import process_document, DocumentProcessor
-from config import LLM_PROVIDER, get_llm_config
+from config import LLM_PROVIDER, get_llm_config, get_redis_config
+
+# Redis 缓存服务
+try:
+    from redis_cache import cache_service
+except ImportError:
+    cache_service = None
 
 app = FastAPI(title="QA Agent Service", version="1.1.0")
 
@@ -82,11 +88,18 @@ async def health_check():
 @app.get("/config")
 async def get_config():
     llm_config = get_llm_config()
+    redis_config = get_redis_config()
     return {
         "provider": LLM_PROVIDER,
         "model": llm_config["model"],
         "api_base": llm_config["api_base"],
-        "version": "2.0.0"
+        "version": "2.0.0",
+        "cache": {
+            "enabled": redis_config["enabled"],
+            "ttl_seconds": redis_config["ttl_seconds"],
+            "host": redis_config["host"],
+            "port": redis_config["port"]
+        }
     }
 
 
@@ -265,6 +278,30 @@ async def rag_status():
         return {"status": "not_available", "message": "RAG service not initialized"}
 
     return {"status": "available", "message": "RAG service is ready"}
+
+
+# ==================== Cache Endpoints ====================
+
+@app.get("/cache/status")
+async def cache_status():
+    """获取缓存服务状态"""
+    if not cache_service:
+        return {"status": "not_available", "message": "缓存服务未加载"}
+    
+    return cache_service.get_stats()
+
+
+@app.delete("/cache/clear")
+async def cache_clear(session_id: Optional[str] = None):
+    """清除缓存（可选按会话ID过滤）"""
+    if not cache_service:
+        raise HTTPException(status_code=503, detail="缓存服务不可用")
+    
+    success = cache_service.clear(session_id)
+    if success:
+        return {"status": "success", "message": f"缓存清除成功{'' if not session_id else f'（会话: {session_id}）'}"}
+    else:
+        raise HTTPException(status_code=500, detail="缓存清除失败")
 
 
 # ==================== Auth Endpoints ====================

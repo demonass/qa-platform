@@ -21,6 +21,14 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+# Redis 缓存配置
+REDIS_ENABLED = os.getenv("REDIS_ENABLED", "false").lower() == "true"
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_TTL_SECONDS = int(os.getenv("REDIS_TTL_SECONDS", "3600"))
+
 
 def get_llm_config():
     if LLM_PROVIDER == "deepseek":
@@ -47,3 +55,14 @@ def get_llm_config():
             "api_base": LOCAL_API_BASE,
             "model": LOCAL_MODEL,
         }
+
+
+def get_redis_config():
+    return {
+        "enabled": REDIS_ENABLED,
+        "host": REDIS_HOST,
+        "port": REDIS_PORT,
+        "password": REDIS_PASSWORD,
+        "db": REDIS_DB,
+        "ttl_seconds": REDIS_TTL_SECONDS,
+    }

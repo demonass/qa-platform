@@ -2,6 +2,32 @@ version: '3.8'
 
 services:
   # ========================================
+  # Redis 缓存服务
+  # ========================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: qa-platform-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - qa-redis-data:/data
+    networks:
+      - qa-platform-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    command: >
+      redis-server --appendonly yes
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+
+  # ========================================
   # Python Agent 服务
   # ========================================
   agent:
@@ -26,6 +52,13 @@ services:
       - LOCAL_API_KEY=${LOCAL_API_KEY:-not-needed}
       - LOCAL_API_BASE=${LOCAL_API_BASE}
       - LOCAL_MODEL=${LOCAL_MODEL}
+      # Redis 缓存配置
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_TTL_SECONDS=${REDIS_TTL_SECONDS:-3600}
       # 时区
       - TZ=${TZ:-Asia/Shanghai}
       # 初始管理员
@@ -37,6 +70,9 @@ services:
       - ./document:/app/document
       # 嵌入模型目录
       - ./embedding_models:/app/embedding_models
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - qa-platform-network
     restart: unless-stopped
@@ -114,4 +150,6 @@ networks:
 # ========================================
 volumes:
   qa-data:
+    driver: local
+  qa-redis-data:
     driver: local
