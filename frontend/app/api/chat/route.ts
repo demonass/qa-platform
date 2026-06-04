@@ -10,6 +10,7 @@ export async function POST(req: Request) {
 
     let userMessage = ''
 
+    let messageMetadata: any = {}
     if (body.messages && Array.isArray(body.messages)) {
       const lastMessage = body.messages[body.messages.length - 1]
       if (lastMessage) {
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
             .filter((p: { type: string }) => p.type === 'text')
             .map((p: { text: string }) => p.text)
             .join('')
+        }
+        // 提取消息的 metadata
+        if (lastMessage.metadata && typeof lastMessage.metadata === 'object') {
+          messageMetadata = lastMessage.metadata
         }
       }
     } else if (body.message && typeof body.message === 'string') {
@@ -45,6 +50,10 @@ export async function POST(req: Request) {
 
     const sessionId = body.id || body.chatId || body.session_id || 'default'
     const mode = body.mode || 'default'
+    // 优先从消息的 metadata 中提取 webSearchMode，其次从请求体中提取
+    const webSearchMode = messageMetadata.webSearchMode || body.metadata?.webSearchMode || body.web_search_mode || body.webSearchMode || false
+
+    console.log('Web search mode:', webSearchMode)
 
     // 创建 AbortController，用于取消请求
     const abortController = new AbortController()
@@ -64,6 +73,7 @@ export async function POST(req: Request) {
             message: userMessage,
             session_id: sessionId,
             mode: mode,
+            web_search_mode: webSearchMode,
           }),
           signal: abortController.signal, // 将取消信号传递给fetch
         })

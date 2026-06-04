@@ -3,7 +3,7 @@
 import { useState, useCallback, KeyboardEvent, useRef, forwardRef, useImperativeHandle } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Square, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ChatInputHandle {
@@ -15,10 +15,12 @@ interface ChatInputProps {
   onSend: (text: string) => void
   onStop?: () => void
   isLoading: boolean
+  webSearchMode?: boolean
+  onWebSearchToggle?: () => void
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
-  function ChatInput({ onSend, onStop, isLoading }, ref) {
+  function ChatInput({ onSend, onStop, isLoading, webSearchMode = false, onWebSearchToggle }, ref) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -46,6 +48,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   return (
     <div className="sticky bottom-0 border-t border-border/50 bg-background/80 p-4 backdrop-blur-xl">
       <div className="mx-auto max-w-3xl">
+        {/* 联网搜索按钮 */}
+        <div className="mb-2 flex items-center justify-center gap-2">
+          <Button
+            variant={webSearchMode ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'gap-2 transition-all',
+              webSearchMode
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-transparent hover:bg-muted'
+            )}
+            onClick={onWebSearchToggle}
+          >
+            <Globe className={cn('size-4', webSearchMode ? 'text-white' : '')} />
+            <span className="text-sm">{webSearchMode ? '🌐 联网搜索已开启' : '🔍 开启联网搜索'}</span>
+          </Button>
+          {webSearchMode && (
+            <span className="text-xs text-muted-foreground">
+              模型将可以访问互联网获取最新信息
+            </span>
+          )}
+        </div>
+        
         <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/20">
           <Textarea
             ref={textareaRef}

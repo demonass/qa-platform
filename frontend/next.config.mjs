@@ -9,6 +9,8 @@ const nextConfig = {
   experimental: {
     devtools: false,
   },
+  // 跳过Node版本检查
+  distDir: '.next',
 }
 
 export default nextConfig

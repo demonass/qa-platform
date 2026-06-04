@@ -38,6 +38,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
     mode: str = "default"
+    web_search_mode: bool = False
 
 class ChatResponse(BaseModel):
     response: str
@@ -162,7 +163,7 @@ async def chat(request: ChatRequest, x_user_id: Optional[str] = Header(None)):
     try:
         conversation_history.add_message(request.session_id, "user", request.message, user_id=x_user_id)
 
-        result = run_agent_with_tools(request.session_id, request.message)
+        result = run_agent_with_tools(request.session_id, request.message, web_search_mode=request.web_search_mode)
 
         conversation_history.add_message(request.session_id, "assistant", result, user_id=x_user_id)
 
@@ -184,7 +185,7 @@ async def chat_stream(request: ChatRequest, x_user_id: Optional[str] = Header(No
 
     async def event_generator():
         try:
-            async for token in stream_chat_response(request.session_id, request.message, request.mode, user_id=x_user_id):
+            async for token in stream_chat_response(request.session_id, request.message, request.mode, user_id=x_user_id, web_search_mode=request.web_search_mode):
                 yield {
                     "event": "message",
                     "data": json.dumps({"content": token, "done": False})

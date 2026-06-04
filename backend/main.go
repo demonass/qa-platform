@@ -28,9 +28,10 @@ var (
 // ---------- types ----------
 
 type ChatRequest struct {
-	Message   string `json:"message" binding:"required"`
-	SessionID string `json:"session_id"`
-	Mode      string `json:"mode"`
+	Message       string `json:"message" binding:"required"`
+	SessionID     string `json:"session_id"`
+	Mode          string `json:"mode"`
+	WebSearchMode bool   `json:"web_search_mode"`
 }
 
 type LoginRequest struct {

@@ -42,6 +42,7 @@ export default function ChatPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorFiles, setEditorFiles] = useState<EditorFile[]>([])
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
+  const [webSearchMode, setWebSearchMode] = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
 
   const { messages, sendMessage, status, setMessages, stop } = useChat({
@@ -208,8 +209,8 @@ export default function ChatPage() {
       )
     }
     
-    sendMessage({ text })
-  }, [currentSessionId, sendMessage])
+    sendMessage({ text, metadata: { webSearchMode } })
+  }, [currentSessionId, sendMessage, webSearchMode])
 
   // 选择会话
   const handleSelectSession = useCallback((id: string) => {
@@ -469,6 +470,8 @@ export default function ChatPage() {
             onSend={handleSend}
             onStop={stop}
             isLoading={isLoading}
+            webSearchMode={webSearchMode}
+            onWebSearchToggle={() => setWebSearchMode(!webSearchMode)}
           />
         </main>
       </div>

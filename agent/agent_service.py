@@ -14,7 +14,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.schema import messages_to_dict, messages_from_dict, HumanMessage, AIMessage, SystemMessage
 from config import get_llm_config
 from intent_detector import Intent, detect_intent, INTENT_RESPONSES
-from tools import get_all_tools
+from tools import get_all_tools, get_tools_with_web_search
 
 # Redis 缓存服务
 try:
@@ -467,7 +467,7 @@ def run_agent_with_history(session_id: str, user_input: str) -> str:
 
 # ==================== 流式输出 ====================
 
-async def stream_chat_response(session_id: str, user_input: str, mode: str = "default", user_id: str = None) -> AsyncGenerator[str, None]:
+async def stream_chat_response(session_id: str, user_input: str, mode: str = "default", user_id: str = None, web_search_mode: bool = False) -> AsyncGenerator[str, None]:
     """
     真正的 token 级流式输出生成器
 
@@ -475,10 +475,17 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
     - RAG 问答：先检索知识库，再流式输出结果
     - 代码分析（需工具调用）：先通过 AgentExecutor 执行工具，再分块输出结果
     - 支持 Redis 缓存：优先检查缓存，命中则直接返回
+    - 支持网络搜索模式：通过 web_search_mode 参数控制是否启用网络搜索工具
     """
+    print(f"[DEBUG] === stream_chat_response 参数 ===")
+    print(f"[DEBUG] session_id: {session_id}")
+    print(f"[DEBUG] user_input: {user_input}")
+    print(f"[DEBUG] mode: {mode}")
+    print(f"[DEBUG] user_id: {user_id}")
+    print(f"[DEBUG] web_search_mode: {web_search_mode}")
+    
     intent = detect_intent(user_input)
     print(f"[DEBUG] 检测到的意图: {intent}")
-    print(f"[DEBUG] 用户输入: {user_input}")
     
     # 尝试从缓存获取答案（流式模式下也支持缓存）
     if cache_service and cache_service.is_enabled():
@@ -527,7 +534,7 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         prefix = INTENT_RESPONSES.get(intent)
         if prefix:
             yield prefix + "\n\n"
-        result = run_agent_with_tools(session_id, user_input_with_history)
+        result = run_agent_with_tools(session_id, user_input_with_history, web_search_mode=web_search_mode)
         # 将答案写入缓存
         if cache_service and cache_service.is_enabled():
             full_result = (prefix + "\n\n" if prefix else "") + result
@@ -540,6 +547,25 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
         return
 
     # ── 普通意图 + 测试用例/计划/执行：真正的 LLM 流式输出 ──
+    # 如果启用了网络搜索模式，使用 AgentExecutor 处理所有请求
+    if web_search_mode:
+        print(f"[DEBUG] 网络搜索模式已开启，使用 AgentExecutor 处理")
+        prefix = INTENT_RESPONSES.get(intent)
+        if prefix:
+            yield prefix + "\n\n"
+        result = run_agent_with_tools(session_id, user_input_with_history, web_search_mode=True)
+        # 将答案写入缓存
+        if cache_service and cache_service.is_enabled():
+            full_result = (prefix + "\n\n" if prefix else "") + result
+            cache_service.set(user_input, full_result, session_id, intent.name)
+        conversation_history.add_message(session_id, "assistant", result, user_id=user_id)
+        # 分块输出
+        for i in range(0, len(result), 3):
+            yield result[i:i+3]
+            await asyncio.sleep(0.01)
+        return
+
+    # 普通模式：直接调用 LLM
     prefix = INTENT_RESPONSES.get(intent)
     if prefix:
         yield prefix + "\n\n"
@@ -585,70 +611,114 @@ async def stream_chat_response(session_id: str, user_input: str, mode: str = "de
 
 # ==================== Agent Executor 工具调用 ====================
 
-REACT_SYSTEM_PROMPT = """你是一位拥有10年经验的资深QA测试工程师，精通软件测试理论和实践。
 
-你的专长：
-1. 熟练掌握IEEE 829测试文档标准
-2. 擅长编写各类测试用例（功能测试、边界测试、异常测试、性能测试）
-3. 熟悉常见的测试方法和策略（等价类划分、边界值分析、决策表测试、状态转换测试）
-4. 了解Agile、Scrum等敏捷开发模式中的测试实践
-
-你有以下工具可以调用：
-{tools}
-
-工具名称：{tool_names}
-
-使用工具时，请严格遵循以下格式：
-Question: 用户的请求
-Thought: 分析用户请求，判断是否需要调用工具
-Action: 工具名称（必须是 [{tool_names}] 中的一个）
-Action Input: 工具参数，必须是合法的 JSON 格式
-Observation: 工具返回的结果
-... (Thought/Action/Action Input/Observation 可重复)
-Thought: 我已获得足够信息来回答
-Final Answer: 最终回答
-
-注意：
-- Action Input 必须是单行 JSON，例如：{{"commit_id": "abc123"}}
-- 如果不需要调用工具，直接给出 Final Answer
-- 回答使用中文，专业、清晰
-
-开始！
-
-{chat_history}
-
-Question: {input}
-{agent_scratchpad}"""
-
-
-def run_agent_with_tools(session_id: str, user_input: str) -> str:
+def run_agent_with_tools(session_id: str, user_input: str, web_search_mode: bool = False) -> str:
     """
-    使用 LangChain AgentExecutor 执行工具增强的 Agent
-    通过 create_react_agent 实现结构化的工具调用，
-    替换了之前脆弱的正则解析方式
+    使用简单的工具调用机制，直接在提示中包含工具信息
+    :param web_search_mode: 是否启用网络搜索模式
     """
     llm = get_llm()
-    tools = get_all_tools()
+    # 根据配置获取工具列表
+    tools = get_tools_with_web_search(enable_web_search=web_search_mode)
+    
+    print(f"[DEBUG] 工具列表: {[tool.name for tool in tools]}")
 
+    # 创建工具映射
+    tool_map = {tool.name: tool for tool in tools}
+    
     # 获取对话历史
-    memory = conversation_history.get_memory(session_id)
+    history_text = conversation_history.format_history(session_id)
+    
+    # 创建工具描述（转义描述中的花括号以避免 f-string 格式冲突）
+    tools_description = "\n".join([f"- {tool.name}: {tool.description.replace('{', '{{').replace('}', '}}')}" for tool in tools])
+    tool_names = ", ".join([tool.name for tool in tools])
 
-    # 使用 LangChain 的 create_react_agent 创建 ReAct Agent
-    prompt = PromptTemplate.from_template(REACT_SYSTEM_PROMPT)
-    agent = create_react_agent(llm=llm, tools=tools, prompt=prompt)
+    # 创建完整提示
+    prompt_text = f"""你是一位拥有10年经验的资深QA测试工程师，精通软件测试理论和实践。
 
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        memory=memory,
-        verbose=True,
-        handle_parsing_errors=True,
-        max_iterations=5,
-    )
+工具使用策略：
+- get_current_datetime（日期时间工具）：当用户询问当前日期、时间、星期几时使用，例如：
+  - "今天是几号"
+  - "现在几点了"
+  - "今天星期几"
+- web_search（网络搜索工具）：当遇到时效性问题、需要获取最新信息时使用，例如：
+  - 新闻查询、时事热点
+  - 最新技术动态、版本更新
+  - 需要实时数据的问题（天气、汇率等）
+  - 你的知识截止日期之后发生的事件
 
-    try:
-        result = agent_executor.invoke({"input": user_input})
-        return result.get("output", "Agent 未能生成有效输出")
-    except Exception as e:
-        print(f"[WARN] AgentExecutor 执行失败，回退到意图模式: {e}")
-        return run_agent_with_history(session_id, user_input)
+重要提醒：
+- 当用户询问当前日期、时间、星期几时，必须使用 get_current_datetime 工具
+- 当用户询问其他时效性问题时，使用 web_search 工具
+- 不要使用你的内部知识回答时效性问题，必须通过工具获取最新信息
+
+可用工具：
+{tools_description}
+
+工具名称列表：{tool_names}
+
+历史对话：
+{history_text}
+
+用户请求：{user_input}
+
+请按照以下格式回答：
+1. 如果需要调用工具，输出：TOOL_CALL:<工具名称>:<JSON参数>
+   例如：TOOL_CALL:get_current_datetime:{{}}  或  TOOL_CALL:web_search:{{{{"query": "人工智能最新发展"}}}}
+2. 如果不需要调用工具，直接回答用户的问题
+
+注意：
+- 只有在需要获取外部信息时才调用工具
+- 调用工具时，参数必须是有效的JSON格式（无参数时使用 {{}}）
+- 如果调用工具，我会执行工具并返回结果，然后你可以基于结果进行回答"""
+
+    # 获取 LLM 响应
+    messages = [
+        {"role": "system", "content": "你是一个智能助手，可以调用工具来回答问题"},
+        {"role": "user", "content": prompt_text}
+    ]
+    
+    response = llm.invoke(messages)
+    response_text = response.content
+    
+    print(f"[DEBUG] LLM 响应: {response_text}")
+    
+    # 检查是否需要调用工具
+    if response_text.startswith("TOOL_CALL:"):
+        try:
+            # 解析工具调用
+            tool_call = response_text[10:]  # 去掉 "TOOL_CALL:"
+            parts = tool_call.split(":", 1)
+            tool_name = parts[0]
+            tool_args = parts[1] if len(parts) > 1 else "{}"
+            
+            # 解析 JSON 参数
+            import json
+            args = json.loads(tool_args)
+            
+            # 调用工具
+            if tool_name in tool_map:
+                print(f"[DEBUG] 调用工具: {tool_name}, 参数: {args}")
+                tool_result = tool_map[tool_name]._run(**args)
+                print(f"[DEBUG] 工具返回结果: {tool_result[:100]}...")
+                
+                # 基于工具结果生成最终回答
+                final_prompt = f"""基于以下工具执行结果，回答用户问题：
+
+用户问题：{user_input}
+
+工具执行结果：
+{tool_result}
+
+请用自然、友好的语言总结工具结果并回答用户问题。"""
+                
+                final_response = llm.invoke([{"role": "user", "content": final_prompt}])
+                return final_response.content
+            else:
+                return f"未知工具: {tool_name}"
+        except Exception as e:
+            print(f"[WARN] 工具调用失败: {e}")
+            return f"工具调用失败: {str(e)}"
+    else:
+        # 直接返回回答
+        return response_text

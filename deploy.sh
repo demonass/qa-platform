@@ -105,8 +105,13 @@ if ! check_command docker; then
 fi
 print_success "Docker 已安装"
 
-# 检查 Docker Compose
-if ! docker compose version &> /dev/null; then
+# 检查 Docker Compose（支持新版 docker compose 和旧版 docker-compose）
+COMPOSE_CMD=""
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+elif docker-compose version &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
     print_error "Docker Compose 未安装"
     print_info "请升级 Docker 到最新版本或安装 docker-compose"
     exit 1
@@ -189,9 +194,9 @@ fi
 # ========================================
 print_header "清理旧容器"
 
-if docker compose ps -q &> /dev/null; then
+if $COMPOSE_CMD ps -q &> /dev/null; then
     print_info "停止旧容器..."
-    docker compose down 2>/dev/null || true
+    $COMPOSE_CMD down 2>/dev/null || true
     print_success "旧容器已停止"
 else
     print_info "没有运行中的容器"
@@ -203,7 +208,7 @@ fi
 print_header "构建镜像"
 
 print_info "开始构建 Docker 镜像（首次构建可能需要 5-10 分钟）..."
-if docker compose build; then
+if $COMPOSE_CMD build; then
     print_success "镜像构建成功"
 else
     print_error "镜像构建失败"
@@ -216,7 +221,7 @@ fi
 print_header "启动服务"
 
 print_info "启动所有服务..."
-if docker compose up -d; then
+if $COMPOSE_CMD up -d; then
     print_success "服务启动成功"
 else
     print_error "服务启动失败"
@@ -245,7 +250,7 @@ wait_for_service "http://localhost:$FRONTEND_PORT" "前端服务"
 # ========================================
 print_header "服务状态"
 
-docker compose ps
+$COMPOSE_CMD ps
 
 # ========================================
 # 8. 部署完成
