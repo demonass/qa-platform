@@ -2,6 +2,10 @@
 
 一个基于大语言模型的智能测试辅助平台，支持测试用例生成、代码分析、需求文档处理等功能。
 
+## 📸 平台预览
+
+![主页面预览](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20AI%20chat%20interface%20dashboard%20with%20sidebar%20conversation%20list%20and%20chat%20area%20showing%20AI%20responses%20about%20test%20case%20generation%20in%20clean%20blue%20theme&image_size=landscape_16_9)
+
 ## 🏗️ 项目架构
 
 ```
