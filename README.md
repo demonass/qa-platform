@@ -4,7 +4,7 @@
 
 ## 📸 平台预览
 
-![主页面预览](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20AI%20chat%20interface%20dashboard%20with%20sidebar%20conversation%20list%20and%20chat%20area%20showing%20AI%20responses%20about%20test%20case%20generation%20in%20clean%20blue%20theme&image_size=landscape_16_9)
+![主页面预览](screen_shots/mainpage.png)
 
 ## 🏗️ 项目架构
 
