@@ -9,7 +9,6 @@ export async function POST(req: Request) {
     console.log('Full request body:', JSON.stringify(body, null, 2))
 
     let userMessage = ''
-
     let messageMetadata: any = {}
     if (body.messages && Array.isArray(body.messages)) {
       const lastMessage = body.messages[body.messages.length - 1]
@@ -22,7 +21,6 @@ export async function POST(req: Request) {
             .map((p: { text: string }) => p.text)
             .join('')
         }
-        // 提取消息的 metadata
         if (lastMessage.metadata && typeof lastMessage.metadata === 'object') {
           messageMetadata = lastMessage.metadata
         }
@@ -32,81 +30,48 @@ export async function POST(req: Request) {
     }
 
     console.log('User message:', userMessage)
+    if (!userMessage) { throw new Error('Empty message') }
 
-    if (!userMessage) {
-      throw new Error('Empty message')
-    }
-
-    const reqHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    // Forward client JWT to Go backend
+    const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
     const clientAuth = req.headers.get('authorization')
-    if (clientAuth) {
-      reqHeaders['Authorization'] = clientAuth
-    } else if (AUTH_TOKEN) {
-      reqHeaders['Authorization'] = `Bearer ${AUTH_TOKEN}`
-    }
+    if (clientAuth) { reqHeaders['Authorization'] = clientAuth }
+    else if (AUTH_TOKEN) { reqHeaders['Authorization'] = `Bearer ${AUTH_TOKEN}` }
 
     const sessionId = body.id || body.chatId || body.session_id || 'default'
     const mode = body.mode || 'default'
-    // 优先从消息的 metadata 中提取 webSearchMode，其次从请求体中提取
     const webSearchMode = messageMetadata.webSearchMode || body.metadata?.webSearchMode || body.web_search_mode || body.webSearchMode || false
 
     console.log('Web search mode:', webSearchMode)
 
-    // 创建 AbortController，用于取消请求
     const abortController = new AbortController()
-    
-    // 监听客户端断开连接（通过 req.signal）
     req.signal?.addEventListener('abort', () => {
       console.log('Client aborted the request')
       abortController.abort()
     })
 
     const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
-      method: 'POST',
-      headers: reqHeaders,
-      body: JSON.stringify({
-        message: userMessage,
-        session_id: sessionId,
-        mode: mode,
-        web_search_mode: webSearchMode,
-      }),
+      method: 'POST', headers: reqHeaders,
+      body: JSON.stringify({ message: userMessage, session_id: sessionId, mode: mode, web_search_mode: webSearchMode }),
       signal: abortController.signal,
     })
 
-    // 在创建流之前检查响应状态
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`Backend returned ${response.status}: ${errorText}`)
-      
-      // 如果是 401 未授权，直接返回 HTTP 401 错误，让前端捕获
       if (response.status === 401) {
         return new Response(
           JSON.stringify({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }),
           { status: 401, headers: { 'Content-Type': 'application/json' } }
         )
       }
-      
-      throw new Error(
-        response.status === 503
-          ? 'QA 服务暂不可用，请确保 Agent 和 Backend 服务已启动'
-          : `连接后端失败 (${response.status})`
-      )
+      throw new Error(response.status === 503 ? 'QA 服务暂不可用，请确保 Agent 和 Backend 服务已启动' : `连接后端失败 (${response.status})`)
     }
 
     const stream = createUIMessageStream({
       async execute({ writer }) {
-
-        if (!response.body) {
-          throw new Error('No response body')
-        }
-
-        // AI SDK v6 要求: text-start → text-delta(s) → text-end，同一 part 必须用同一个 id
+        if (!response.body) { throw new Error('No response body') }
         const partId = 'resp-' + Date.now()
         let started = false
-
         const reader = response.body.getReader()
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
@@ -115,69 +80,43 @@ export async function POST(req: Request) {
           while (true) {
             const { done: readerDone, value } = await reader.read()
             if (readerDone) break
-
             buffer += decoder.decode(value, { stream: true })
-
             while (buffer.includes('\n')) {
               const lineEnd = buffer.indexOf('\n')
               const line = buffer.slice(0, lineEnd).trim()
               buffer = buffer.slice(lineEnd + 1)
-
               if (!line) continue
-
               if (line.startsWith('data: ')) {
                 try {
                   const dataStr = line.slice(6)
                   const data = JSON.parse(dataStr)
-
                   if (data.content && !data.done) {
-                    if (!started) {
-                      writer.write({ type: 'text-start', id: partId })
-                      started = true
-                    }
+                    if (!started) { writer.write({ type: 'text-start', id: partId }); started = true }
                     writer.write({ type: 'text-delta', id: partId, delta: data.content })
                   } else if (data.done) {
-                    if (started) {
-                      writer.write({ type: 'text-end', id: partId })
-                    }
+                    if (started) { writer.write({ type: 'text-end', id: partId }) }
                     return
                   }
-                } catch (e) {
-                  console.error('Failed to parse SSE data:', e)
-                }
+                } catch (e) { console.error('Failed to parse SSE data:', e) }
               }
             }
           }
         } catch (error) {
-          // 如果是取消错误，不抛出异常
-          if (error instanceof Error && error.name === 'AbortError') {
-            console.log('Stream was aborted by client')
-            return
-          }
+          if (error instanceof Error && error.name === 'AbortError') { console.log('Stream was aborted by client'); return }
           throw error
         }
-
-        // 如果流结束但没有收到 done 信号，也发送 text-end
-        if (started) {
-          writer.write({ type: 'text-end', id: partId })
-        }
+        if (started) { writer.write({ type: 'text-end', id: partId }) }
       },
     })
 
     return createUIMessageStreamResponse({ stream })
   } catch (error) {
     console.error('API Chat Error:', error)
-    
-    // 其他错误返回给客户端
     const partId = 'error-' + Date.now()
     const errorStream = createUIMessageStream({
       async execute({ writer }) {
         writer.write({ type: 'text-start', id: partId })
-        writer.write({
-          type: 'text-delta',
-          id: partId,
-          delta: `❌ 错误: ${error instanceof Error ? error.message : 'Internal server error'}`,
-        })
+        writer.write({ type: 'text-delta', id: partId, delta: `❌ 错误: ${error instanceof Error ? error.message : 'Internal server error'}` })
         writer.write({ type: 'text-end', id: partId })
       },
     })

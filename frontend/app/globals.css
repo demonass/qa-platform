@@ -116,23 +116,10 @@
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
 }
 
-/* Hide Next.js DevTools button */
-[data-nextjs-devtools] {
-  display: none !important;
-}
-
-.nextjs-devtools {
-  display: none !important;
-}
-
-#__next_devtools__ {
+[data-nextjs-devtools], .nextjs-devtools, #__next_devtools__ {
   display: none !important;
 }

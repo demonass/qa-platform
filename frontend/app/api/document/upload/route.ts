@@ -6,31 +6,19 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json({ error: '请选择文件' }, { status: 400 });
-    }
-
+    if (!file) { return NextResponse.json({ error: '请选择文件' }, { status: 400 }); }
     const backendFormData = new FormData();
     backendFormData.append('file', file);
     backendFormData.append('strategy', 'semantic');
     backendFormData.append('target_chunks', '5');
-
-    const response = await fetch(`${BACKEND_URL}/document/upload`, {
-      method: 'POST',
-      body: backendFormData,
-    });
-
+    const response = await fetch(`${BACKEND_URL}/document/upload`, { method: 'POST', body: backendFormData });
     if (!response.ok) {
-      // 如果是 401 认证过期，返回特殊错误让前端处理
       if (response.status === 401) {
         return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
       }
-      
       const errorData = await response.json().catch(() => ({ detail: '上传失败' }));
       return NextResponse.json({ error: errorData.detail || '上传失败' }, { status: response.status });
     }
-
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
@@ -41,11 +29,9 @@ export async function POST(req: Request) {
 export async function GET() {
   try {
     const response = await fetch(`${BACKEND_URL}/rag/status`);
-    
     if (!response.ok) {
       return NextResponse.json({ status: 'not_available', message: '无法连接到后端' }, { status: response.status });
     }
-
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {

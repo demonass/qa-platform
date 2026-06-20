@@ -1,16 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-  experimental: {
-    devtools: false,
-  },
-  // 跳过Node版本检查
+  typescript: { ignoreBuildErrors: true },
+  images: { unoptimized: true },
   distDir: '.next',
+  devIndicators: {
+    enabled: false,
+  },
 }
 
 export default nextConfig

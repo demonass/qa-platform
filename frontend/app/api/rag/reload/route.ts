@@ -7,22 +7,14 @@ export async function POST(req: Request) {
     const headers: Record<string, string> = {}
     const clientAuth = req.headers.get('authorization')
     if (clientAuth) headers['Authorization'] = clientAuth
-
-    const response = await fetch(`${BACKEND_URL}/rag/reload`, {
-      method: 'POST',
-      headers,
-    });
-
+    const response = await fetch(`${BACKEND_URL}/rag/reload`, { method: 'POST', headers });
     if (!response.ok) {
-      // 如果是 401 认证过期，返回特殊错误让前端处理
       if (response.status === 401) {
         return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
       }
-      
       const errorData = await response.json().catch(() => ({ detail: '重新加载失败' }));
       return NextResponse.json({ error: errorData.detail || '重新加载失败' }, { status: response.status });
     }
-
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
