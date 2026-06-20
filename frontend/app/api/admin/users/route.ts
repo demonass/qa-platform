@@ -9,6 +9,12 @@ export async function GET(req: Request) {
     const response = await fetch(`${BACKEND_URL}/api/admin/users`, {
       headers: { Authorization: auth },
     })
+    
+    // 如果是 401 认证过期，返回特殊错误让前端处理
+    if (response.status === 401) {
+      return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
+    }
+    
     const data = await response.json()
     return NextResponse.json(data, { status: response.status })
   } catch {
@@ -29,6 +35,12 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify(body),
     })
+    
+    // 如果是 401 认证过期，返回特殊错误让前端处理
+    if (response.status === 401) {
+      return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
+    }
+    
     const data = await response.json()
     return NextResponse.json(data, { status: response.status })
   } catch {

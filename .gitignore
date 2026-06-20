@@ -20,6 +20,8 @@ env/
 *.test
 *.out
 go.sum
+main
+main_new
 
 
 # Node
@@ -63,3 +65,5 @@ document/*
 # Data (SQLite DB, etc.)
 data/backend/main
 data/*.db
+data/**/*.db
+data/*/

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { ChatSidebar, ChatSession } from '@/components/chat-sidebar'
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/sheet'
 import type { UIMessage } from 'ai'
 import { toast } from 'sonner'
+import { forceLogout, isAuthExpiredError } from '@/lib/auth-error'
 
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -35,6 +37,7 @@ export interface StoredSession extends ChatSession {
 }
 
 export default function ChatPage() {
+  const router = useRouter()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -45,7 +48,48 @@ export default function ChatPage() {
   const [webSearchMode, setWebSearchMode] = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
 
-  const { messages, sendMessage, status, setMessages, stop } = useChat({
+  // 页面加载时立即检查登录状态
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      const token = localStorage.getItem('qa-token')
+      
+      // 如果没有 token，直接跳转到登录页面
+      if (!token) {
+        router.push('/login')
+        return
+      }
+
+      try {
+        // 向后端发送验证请求，检查 token 是否有效
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            messages: [{ content: '__auth_check__', metadata: { webSearchMode: false } }]
+          })
+        })
+
+        // 如果返回 401，说明 token 过期或无效，强制退出
+        if (response.status === 401) {
+          forceLogout()
+          return
+        }
+
+        // token 有效，继续正常使用
+        console.log('Token 验证通过')
+      } catch (error) {
+        console.error('验证登录状态失败:', error)
+        // 网络错误时不强制退出，让用户可以尝试重新连接
+      }
+    }
+
+    checkAuthStatus()
+  }, [router])
+
+  const { messages, sendMessage, status, setMessages, stop, error } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
       // Include JWT token in every chat request
@@ -57,6 +101,54 @@ export default function ChatPage() {
       },
     }),
   })
+
+  // 处理 useChat hook 的错误
+  useEffect(() => {
+    if (error) {
+      console.error('Chat error:', error)
+      if (isAuthExpiredError(error)) {
+        forceLogout()
+      }
+    }
+  }, [error])
+
+  // 主动检查 token 有效性（在发送消息前）
+  const sendMessageWithAuthCheck = useCallback(async (args: { text: string }) => {
+    const token = localStorage.getItem('qa-token')
+    if (!token) {
+      // 没有 token，直接跳转到登录页面
+      forceLogout()
+      return
+    }
+
+    try {
+      // 在发送消息前验证 token
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messages: [{ content: args.text, metadata: { webSearchMode } }]
+        }),
+        signal: AbortController.prototype.signal
+      })
+
+      // 如果返回 401，强制退出
+      if (response.status === 401) {
+        forceLogout()
+        return
+      }
+
+      // 正常发送消息
+      await sendMessage({ text: args.text, metadata: { webSearchMode } })
+    } catch (e) {
+      console.error('Send message error:', e)
+      // 如果是网络错误或其他错误，继续使用原有的 sendMessage
+      await sendMessage({ text: args.text, metadata: { webSearchMode } })
+    }
+  }, [sendMessage, webSearchMode])
 
   const chatInputRef = useRef<ChatInputHandle>(null)
   const isLoading = status === 'streaming' || status === 'submitted'
@@ -209,8 +301,8 @@ export default function ChatPage() {
       )
     }
     
-    sendMessage({ text, metadata: { webSearchMode } })
-  }, [currentSessionId, sendMessage, webSearchMode])
+    sendMessageWithAuthCheck({ text })
+  }, [currentSessionId, sendMessageWithAuthCheck])
 
   // 选择会话
   const handleSelectSession = useCallback((id: string) => {
@@ -317,9 +409,9 @@ export default function ChatPage() {
       .join('')
     
     if (userMessage.role === 'user' && text) {
-      sendMessage({ text })
+      sendMessageWithAuthCheck({ text })
     }
-  }, [sendMessage, setMessages])
+  }, [sendMessageWithAuthCheck, setMessages])
 
   // 删除消息（同时删除用户消息和AI回复）
   const handleDeleteMessage = useCallback((userMessageId: string, aiMessageId: string) => {

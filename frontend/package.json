@@ -1,6 +1,7 @@
 {
-  "name": "my-project",
-  "version": "0.1.0",
+  "name": "qa-platform-frontend",
+  "version": "1.0.0",
+  "description": "QA Platform Frontend - AI Chat Interface",
   "private": true,
   "scripts": {
     "dev": "next dev",

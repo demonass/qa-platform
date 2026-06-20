@@ -14,6 +14,11 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok) {
+      // 如果是 401 认证过期，返回特殊错误让前端处理
+      if (response.status === 401) {
+        return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
+      }
+      
       const errorData = await response.json().catch(() => ({ detail: '重新加载失败' }));
       return NextResponse.json({ error: errorData.detail || '重新加载失败' }, { status: response.status });
     }

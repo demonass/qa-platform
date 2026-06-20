@@ -11,6 +11,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       method: 'DELETE',
       headers: { Authorization: auth },
     })
+    
+    // 如果是 401 认证过期，返回特殊错误让前端处理
+    if (response.status === 401) {
+      return NextResponse.json({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }, { status: 401 });
+    }
+    
     if (!response.ok) {
       const data = await response.json().catch(() => ({ error: '删除失败' }))
       return NextResponse.json(data, { status: response.status })

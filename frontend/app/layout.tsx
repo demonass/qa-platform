@@ -10,7 +10,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: 'QA 智能助手 - AI 对话平台',
   description: '由先进 AI 技术驱动的智能对话平台，让沟通更高效、更智能',
-  generator: 'v0.app',
   icons: {
     icon: [
       {

@@ -64,29 +64,40 @@ export async function POST(req: Request) {
       abortController.abort()
     })
 
+    const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
+      method: 'POST',
+      headers: reqHeaders,
+      body: JSON.stringify({
+        message: userMessage,
+        session_id: sessionId,
+        mode: mode,
+        web_search_mode: webSearchMode,
+      }),
+      signal: abortController.signal,
+    })
+
+    // 在创建流之前检查响应状态
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Backend returned ${response.status}: ${errorText}`)
+      
+      // 如果是 401 未授权，直接返回 HTTP 401 错误，让前端捕获
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: 'AUTH_EXPIRED:登录已过期，请重新登录' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      
+      throw new Error(
+        response.status === 503
+          ? 'QA 服务暂不可用，请确保 Agent 和 Backend 服务已启动'
+          : `连接后端失败 (${response.status})`
+      )
+    }
+
     const stream = createUIMessageStream({
       async execute({ writer }) {
-        const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
-          method: 'POST',
-          headers: reqHeaders,
-          body: JSON.stringify({
-            message: userMessage,
-            session_id: sessionId,
-            mode: mode,
-            web_search_mode: webSearchMode,
-          }),
-          signal: abortController.signal, // 将取消信号传递给fetch
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`Backend returned ${response.status}: ${errorText}`)
-          throw new Error(
-            response.status === 503
-              ? 'QA 服务暂不可用，请确保 Agent 和 Backend 服务已启动'
-              : `连接后端失败 (${response.status})`
-          )
-        }
 
         if (!response.body) {
           throw new Error('No response body')
@@ -156,6 +167,8 @@ export async function POST(req: Request) {
     return createUIMessageStreamResponse({ stream })
   } catch (error) {
     console.error('API Chat Error:', error)
+    
+    // 其他错误返回给客户端
     const partId = 'error-' + Date.now()
     const errorStream = createUIMessageStream({
       async execute({ writer }) {

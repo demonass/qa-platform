@@ -5,6 +5,7 @@ import numpy as np
 
 try:
     from transformers import AutoTokenizer, AutoModel
+    import torch
     USE_TRANSFORMERS = True
 except ImportError:
     USE_TRANSFORMERS = False
@@ -150,8 +151,6 @@ def get_model():
             return None, None
     return _tokenizer, _model
 
-
-import torch
 
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
