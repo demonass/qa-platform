@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useChatStore } from '../store'
-import { useSessionManager, useChatAuthCheck } from '../hooks'
+import { useSessionManager } from '../hooks'
 import { ChatHeader } from './ChatHeader'
 import { ChatSidebar } from './ChatSidebar'
 import { ChatMessages } from './ChatMessages'
-import { ChatInput } from './ChatInput'
+import { ChatInput, type ChatInputHandle } from './ChatInput'
 import { EmptyState } from './EmptyState'
 import { EditorPanel } from './EditorPanel'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 
 export function ChatView() {
   const isMobile = useMediaQuery('(max-width: 768px)')
-  const checkAuth = useChatAuthCheck()
+  const inputRef = useRef<ChatInputHandle>(null)
 
   const sidebarCollapsed = useChatStore((s) => s.sidebarCollapsed)
   const editorOpen = useChatStore((s) => s.editorOpen)
@@ -75,15 +75,6 @@ export function ChatView() {
       useChatStore.getState().updateSession(sid, { lastMessage: text, updatedAt: new Date() })
     }
 
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ messages: [{ content: text, metadata: { webSearchMode } }] }),
-      })
-      if (res.status === 401) { forceLogout(); return }
-    } catch { /* continue */ }
-
     await sendMessage({ text, metadata: { webSearchMode } })
   }, [currentSessionId, sendMessage, webSearchMode])
 
@@ -113,6 +104,11 @@ export function ChatView() {
       () => toast.success('已复制到剪贴板'),
       () => toast.error('复制失败')
     )
+  }, [])
+
+  const handleSuggestionClick = useCallback((text: string) => {
+    inputRef.current?.setInput(text)
+    inputRef.current?.focus()
   }, [])
 
   const sidebarContent = (
@@ -153,11 +149,11 @@ export function ChatView() {
 
         <main className="flex flex-1 flex-col overflow-hidden">
           {messages.length === 0 ? (
-            <EmptyState onSuggestionClick={(text) => handleSend(text)} />
+            <EmptyState onSuggestionClick={handleSuggestionClick} />
           ) : (
             <ChatMessages messages={messages} isLoading={isLoading} onCopy={onCopy} onSend={handleSend} setMessages={setMessages} />
           )}
-          <ChatInput onSend={handleSend} onStop={stop} isLoading={isLoading}
+          <ChatInput ref={inputRef} onSend={handleSend} onStop={stop} isLoading={isLoading}
             webSearchMode={webSearchMode} onWebSearchToggle={() => useChatStore.getState().setWebSearchMode(!webSearchMode)} />
         </main>
       </div>
