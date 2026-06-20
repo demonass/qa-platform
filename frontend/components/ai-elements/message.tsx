@@ -2,10 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  ButtonGroup,
-  ButtonGroupText,
-} from "@/components/ui/button-group";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -226,7 +222,7 @@ export const MessageBranchContent = ({
   ));
 };
 
-export type MessageBranchSelectorProps = ComponentProps<typeof ButtonGroup>;
+export type MessageBranchSelectorProps = ComponentProps<"div">;
 
 export const MessageBranchSelector = ({
   className,
@@ -240,12 +236,11 @@ export const MessageBranchSelector = ({
   }
 
   return (
-    <ButtonGroup
+    <div
       className={cn(
         "[&>*:not(:first-child)]:rounded-l-md [&>*:not(:last-child)]:rounded-r-md",
         className
       )}
-      orientation="horizontal"
       {...props}
     />
   );
@@ -306,7 +301,7 @@ export const MessageBranchPage = ({
   const { currentBranch, totalBranches } = useMessageBranch();
 
   return (
-    <ButtonGroupText
+    <span
       className={cn(
         "border-none bg-transparent text-muted-foreground shadow-none",
         className
@@ -314,7 +309,7 @@ export const MessageBranchPage = ({
       {...props}
     >
       {currentBranch + 1} of {totalBranches}
-    </ButtonGroupText>
+    </span>
   );
 };
 
