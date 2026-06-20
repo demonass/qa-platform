@@ -15,7 +15,7 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
 QWEN_API_BASE = os.getenv("QWEN_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen-plus")
+QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen-max")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
